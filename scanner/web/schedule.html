@@ -89,6 +89,7 @@
 <script src="/static/shell.js"></script>
 <script src="/static/patient-form.js"></script>
 <script src="/static/eligibility.js"></script>
+<script src="/static/payments.js"></script>
 <script>
 renderNav("/schedule");
 const DAY_START = 8, DAY_END = 19, SLOT = 15, PX_PER_MIN = 1.5;   // 8 AM-7 PM (covers an evening demo), 15-minute rows
@@ -318,6 +319,7 @@ function openDetail(a) {
       <span class="k">Patient</span><span>${esc(a.mrn)} · DOB ${fmtDate(a.dob)} · <a href="/patient?id=${a.patient_id}">Open chart →</a></span>
     </div>
     ${["cancelled", "no_show"].includes(a.status) ? "" : `<div style="margin-top:14px"><div class="small muted" style="font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Insurance</div><div id="apptElig"></div></div>`}
+    ${["booked", "checked_in", "in_visit"].includes(a.status) ? `<div style="margin-top:14px"><div class="small muted" style="font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Payment</div><div id="apptCopay"></div></div>` : ""}
     </div>
     <div class="modal-foot" style="justify-content:flex-start"><div class="actions">${acts || '<span class="muted">Visit completed.</span>'}</div></div>`);
   // Track B: insurance eligibility (re-checked automatically if never verified or out of date)
@@ -329,24 +331,41 @@ function openDetail(a) {
       onEditInsurance: async () => openPatientForm(await api("/api/patients/" + a.patient_id), () => { load(); openDetail(a); }),
     });
   }
+  // Track B: copay / amount due today (from the eligibility answer) + any balance from earlier visits
+  let copay = null;
+  if (m.querySelector("#apptCopay")) renderCopayPanel(m.querySelector("#apptCopay"), a, {
+    onCollect: (s) => openPaymentModal({ patient: { id: a.patient_id, first_name: a.first_name, last_name: a.last_name, mrn: a.mrn },
+      amount: s.remaining, kind: "copay", source: "check_in", appointmentId: a.id, title: `Collect ${s.label.toLowerCase()}`, note: s.note,
+      onPaid: () => openDetail(a) }),
+  }).then((s) => { copay = s; });
   m.querySelectorAll("[data-act]").forEach((b) => b.onclick = async () => {
     const act = b.dataset.act;
     if (act === "reschedule") return openReschedule(a);
     const checkingIn = a.status === "booked" && (act === "checked_in" || act === "start");
     if (checkingIn && coverage && ELIG_PROBLEM.includes(coverage.status) &&
         !confirm(`Insurance problem: ${coverage.label}.\n\n${coverage.action || ""}\n\nCheck ${a.first_name} in anyway?`)) return;
-    if (act === "start") {
-      const res = await api(`/api/appointments/${a.id}/start-visit`, { method: "POST" });
-      location.href = "/visit?id=" + res.encounter_id;
-      return;
-    }
     if (act === "cancelled" && !confirm(`Cancel ${a.first_name} ${a.last_name}'s appointment?`)) return;
-    try {
-      await api(`/api/appointments/${a.id}`, { method: "PATCH", body: { status: act } });
-      closeModal();
-      toast({ checked_in: "Checked in ✓", booked: "Restored", no_show: "Marked as no-show", cancelled: "Appointment cancelled" }[act]);
-      load();
-    } catch (ex) { toast(ex.message, "error"); }
+    const perform = async () => {
+      if (act === "start") {
+        const res = await api(`/api/appointments/${a.id}/start-visit`, { method: "POST" });
+        location.href = "/visit?id=" + res.encounter_id;
+        return;
+      }
+      try {
+        await api(`/api/appointments/${a.id}`, { method: "PATCH", body: { status: act } });
+        closeModal();
+        toast({ checked_in: "Checked in ✓", booked: "Restored", no_show: "Marked as no-show", cancelled: "Appointment cancelled" }[act]);
+        load();
+      } catch (ex) { toast(ex.message, "error"); }
+    };
+    // Track B: collect the copay as part of check-in (or skip and collect later)
+    if (checkingIn && copay && copay.remaining > 0) {
+      return openPaymentModal({ patient: { id: a.patient_id, first_name: a.first_name, last_name: a.last_name, mrn: a.mrn },
+        amount: copay.remaining, kind: "copay", source: "check_in", appointmentId: a.id,
+        title: `Check in ${a.first_name}: collect ${copay.label.toLowerCase()}`, note: copay.note,
+        skipLabel: "Skip, collect later", onPaid: perform, onSkip: perform });
+    }
+    perform();
   });
 }
 

@@ -45,6 +45,7 @@
 <script src="/static/patient-form.js"></script>
 <script src="/static/rx-form.js"></script>
 <script src="/static/eligibility.js"></script>
+<script src="/static/payments.js"></script>
 <script>
 renderNav("/patients");
 const patientId = Number(new URLSearchParams(location.search).get("id"));
@@ -117,6 +118,7 @@ function render() {
         : `<span class="badge amber">No insurance on file</span><p class="muted small">Needed before a claim can be billed. Click Edit to add it.</p>`}
         ${p.payer_name ? '<div id="eligBox" style="margin-top:12px"></div>' : ""}
       </div>
+      <div class="panel card"><h3>Balance</h3><div id="balanceBox"><span class="muted small">Loading…</span></div></div>
       <div class="panel card">
         <h3>Contact &amp; pharmacy</h3>
         <div class="kv">
@@ -180,6 +182,7 @@ function render() {
     </div>
   </div>`;
   $("editBtn").onclick = () => openPatientForm(patient, load);
+  renderBalanceCard($("balanceBox"), p);  // Track B
   if ($("eligBox")) renderEligibility($("eligBox"), p.id, { source: "chart", compact: true, onEditInsurance: () => openPatientForm(patient, load) });  // Track B
   $("visitBtn").onclick = openWalkIn;
   $("rxBtn").onclick = () => {
@@ -214,6 +217,7 @@ onEvent((ev) => {
   if (ev.type === "crm_saved" && ev.patient_id === patientId) { toast("New screening added from card scan"); load(); }
   if ((ev.type === "rx_updated" || ev.type === "rx_sent") && ev.rx.patient_id === patientId) load();
   if (ev.type === "clinic_reset") location.href = "/patients";
+  if (ev.type === "payment_posted" && ev.patient_id === patientId && $("balanceBox")) renderBalanceCard($("balanceBox"), patient);  // Track B
 });
 load();
 </script>

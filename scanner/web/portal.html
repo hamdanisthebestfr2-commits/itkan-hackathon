@@ -122,6 +122,7 @@
 <div id="app"><div class="empty">Loading…</div></div>
 
 <script src="/static/shell.js"></script>
+<script src="/static/payments.js"></script>
 <script>
 // Patient-facing page: uses the shell helpers (api, esc, toast, openModal, onEvent) but not the staff nav.
 $("brandName").textContent = `${PRODUCT_NAME} · Patient Portal`;
@@ -140,7 +141,7 @@ const TIME_OF_DAY = { any: "Any time", morning: "Morning (8 AM-12 PM)", afternoo
 
 const params = new URLSearchParams(location.search);
 const patientId = Number(params.get("patient")) || null;
-let view = null, ref = null, results = null, resultsAvailable = false;
+let view = null, ref = null, results = null, resultsAvailable = false, bill = null;
 let openThreads = new Set();
 
 const section = () => { const s = location.hash.slice(1); return SECTIONS.some(([k]) => k === s) ? s : "home"; };
@@ -172,7 +173,7 @@ async function renderPicker() {
 // ---------- data ----------
 async function load() {
   try {
-    [view, ref] = await Promise.all([api(`/api/portal/${patientId}`), reference()]);
+    [view, ref, bill] = await Promise.all([api(`/api/portal/${patientId}`), reference(), api(`/api/patients/${patientId}/balance`)]);
   } catch (e) {
     $("app").innerHTML = `<div class="picker"><div class="box">${esc(e.message)}. <a href="/portal">Choose another patient</a></div></div>`;
     return;
@@ -199,7 +200,7 @@ function render() {
   const p = view.patient;
   $("who").innerHTML = `<span>👤 ${esc(p.first_name)} ${esc(p.last_name)}</span><a href="/portal">Switch patient</a>`;
   const cur = section();
-  const badge = { messages: view.unread, results: newResults().length };
+  const badge = { messages: view.unread, results: newResults().length, billing: bill.due > 0 ? "$" : 0 };
   $("app").innerHTML = `<div class="pt-wrap">
     <nav class="side">${SECTIONS.map(([k, ic, label]) => `<a href="#${k}" class="${k === cur ? "active" : ""}">
       <span class="ic">${ic}</span>${label}${badge[k] ? `<span class="count">${badge[k]}</span>` : ""}</a>`).join("")}</nav>
@@ -237,6 +238,10 @@ function renderHome(el) {
         <span class="big">${view.prescriptions.length} prescription${view.prescriptions.length === 1 ? "" : "s"}</span>
         <span class="muted small">${refills ? `${refills} refill request${refills > 1 ? "s" : ""} in progress` : "Running low? Request a refill online."}</span>
         <span class="act"><a class="btn small" href="#medications">Request a refill</a></span></div>
+      <div class="tile"><span class="lbl">Billing</span>
+        <span class="big">${bill.due > 0 ? `You owe ${usd(bill.due)}` : bill.credit ? `${usd(bill.credit)} credit` : "Nothing owed"}</span>
+        <span class="muted small">${bill.pending.length ? `${bill.pending.length} visit${bill.pending.length > 1 ? "s" : ""} still with your insurance.` : "Your share after insurance, explained."}</span>
+        <span class="act"><a class="btn small ${bill.due > 0 ? "pt" : ""}" href="#billing">${bill.due > 0 ? "Pay now" : "View billing"}</a></span></div>
     </div>
     <div class="box"><h3>Your health record</h3>
       <div class="kv">
@@ -256,7 +261,7 @@ function apptRow(a) {
     <div class="cal"><div class="m">${d.toLocaleDateString("en-US", { month: "short" })}</div><div class="d">${d.getDate()}</div>
       <div class="w">${d.toLocaleDateString("en-US", { weekday: "short" })}</div></div>
     <div class="info"><div class="t">${timeOf(a.start)} · ${esc(a.provider_name)}</div>
-      <div class="muted small">${esc(a.reason || "Office visit")} · ${a.duration_min} min · 1701 10th St, Plano TX</div></div>
+      <div class="muted small">${esc(a.reason || "Office visit")} · ${a.duration_min} min · 100 Example Pkwy, Plano TX</div></div>
     <span class="badge ${cls}">${label}</span></div>`;
 }
 
@@ -490,9 +495,35 @@ function renderVisits(el) {
 
 // ---------- billing (Track B task 3: balances + online payment) ----------
 function renderBilling(el) {
-  el.innerHTML = `<div class="sec-title"><h2>Billing</h2></div>
-    <div class="box"><h3>Online bill pay</h3>
-      <p class="muted" style="margin:0">Coming soon: see what you owe after insurance, and pay your bill online.</p></div>`;
+  const b = bill;
+  el.innerHTML = `<div class="sec-title"><h2>Billing</h2>
+      <a class="btn" href="/statement?patient_id=${patientId}" target="_blank">📄 View statement</a></div>
+    <div class="box" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px"><div class="muted small" style="font-weight:700;text-transform:uppercase;letter-spacing:.5px">
+        ${b.due > 0 ? "Amount due" : b.credit ? "Credit on your account" : "Your balance"}</div>
+        <div style="font-size:30px;font-weight:800;color:${b.due > 0 ? "var(--missing)" : "var(--ok)"}">${usd(b.credit || b.due)}</div>
+        <div class="muted small">${b.due > 0 ? `Please pay by ${fmtDate(b.due_date)}.` : b.credit ? "We'll use it toward your next visit." : "You're all paid up. Thank you!"}</div></div>
+      ${b.due > 0 ? `<button class="btn pt" id="payNow" style="font-size:16px;padding:10px 22px">Pay ${usd(b.due)}</button>` : ""}
+    </div>
+    ${b.visits.length ? `<div class="box"><h3>Your visits after insurance</h3>
+      ${b.visits.slice().reverse().map((v) => `<div class="appt">
+        <div class="info"><div class="t">${fmtDate(v.dos)} · ${esc(v.provider || "Office visit")}</div>
+          <div class="muted small">Billed ${usd(v.billed)} · ${v.payer ? `${esc(v.payer)} paid ${usd(v.insurance_paid)} · plan discount ${usd(v.adjustment)}` : `self-pay discount ${usd(v.adjustment)}`}</div></div>
+        <div style="text-align:right"><div class="t">${usd(v.amount)}</div><div class="muted small">your share</div></div></div>`).join("")}
+      <p class="muted small" style="margin:10px 0 0">Your share is your copay or coinsurance. Discounts and anything your insurance denied are not billed to you.</p></div>` : ""}
+    ${b.pending.length ? `<div class="box"><h3>Waiting for your insurance</h3>${b.pending.map((x) => `<div class="appt"><div class="info">
+      <div class="t">${fmtDate(x.dos)} · ${esc(x.provider || "Office visit")}</div><div class="muted small">${esc(x.description)}</div></div>
+      <span class="badge amber">Not billed yet</span></div>`).join("")}</div>` : ""}
+    <div class="box"><h3>Payments</h3>
+      ${b.payments.length ? b.payments.map((x) => `<div class="appt"><div class="info">
+        <div class="t">${usd(x.amount)} · ${x.kind === "copay" ? "Copay" : "Payment"}</div>
+        <div class="muted small">${fmtDate(x.created_at.slice(0, 10))} · ${x.method === "card" ? `${esc(x.card_brand)} •••• ${esc(x.card_last4)}` : x.method === "check" ? "Check" : "Cash"}
+          ${x.source === "portal" ? " · paid online" : x.source === "check_in" ? " · at check-in" : ""} · receipt ${esc(x.receipt)}</div></div>
+        <span class="badge green">Paid</span></div>`).join("") : '<p class="muted" style="margin:0">No payments yet.</p>'}</div>`;
+  const pay = el.querySelector("#payNow");
+  if (pay) pay.onclick = () => openPaymentModal({ patient: view.patient, amount: b.due, maxAmount: b.due, methods: ["card"],
+    source: "portal", title: "Pay your bill", note: "Secure demo payment: no real card is charged.",
+    onPaid: () => { toast("Payment received. Thank you! ✓"); load(); } });
 }
 
 // ---------- live updates ----------
