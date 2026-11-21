@@ -52,10 +52,11 @@
 <script src="/static/rx-form.js"></script>
 <script src="/static/ambient.js"></script>
 <script src="/static/labs.js"></script>
+<script src="/static/caregaps.js"></script>
 <script>
 renderNav("/schedule");
 const encId = Number(new URLSearchParams(location.search).get("id"));
-let enc = null, saveTimer = null, recognition = null;
+let enc = null, saveTimer = null, recognition = null, gapsUi = null;
 
 const VFIELDS = [  // key, label, flag(value) -> "" | "warn" | "bad"
   ["bp_systolic", "BP systolic", (v) => v >= 180 ? "bad" : v >= 140 ? "warn" : ""],
@@ -138,6 +139,7 @@ function render() {
     </div>
 
     <div class="side">
+      <div class="panel card gaps-card" id="gapsCard"></div>
       <div class="panel card"><h3>Patient summary</h3><div class="kv">
         <span class="k">Conditions</span><span>${esc(p.conditions) || "-"}</span>
         <span class="k">Medications</span><span>${esc(p.medications) || "-"}</span>
@@ -159,6 +161,11 @@ function render() {
   renderRx();
   updateVitalFlags();
   setupLabs($("labsCard"), { encId, locked });
+  gapsUi = setupCareGaps($("gapsCard"), {
+    patientId: p.id, encId, locked,
+    insertNote: (text) => insertNote(text),
+    focusVitals: (k) => { const el = document.querySelector(`[data-k="${k}"]`); if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.focus(); } },
+  });
   if (locked) { showClaimStatus(); return; }
 
   document.querySelectorAll("[data-k]").forEach((el) => el.addEventListener("input", () => { updateVitalFlags(); queueSave(); }));
@@ -236,6 +243,7 @@ async function save() {
   try {
     await api(`/api/encounters/${encId}`, { method: "PUT", body: { note: $("note").value, vitals: currentVitals() } });
     setSaved("Saved ✓ " + new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }));
+    if (gapsUi) gapsUi.refresh();   // vitals/notes can close care gaps
   } catch (e) { setSaved("Not saved: " + e.message); }
 }
 window.addEventListener("beforeunload", () => { if (saveTimer) save(); });

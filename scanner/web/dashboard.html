@@ -36,7 +36,15 @@
   .none { padding: 18px 16px; color: var(--muted); font-size: 14px; }
   .lvl { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px; white-space: nowrap; }
   .lvl.urgent { background: var(--missing-bg); color: var(--missing); } .lvl.follow_up { background: var(--check-bg); color: var(--check); }
-  @media (max-width: 1150px) { .top, .cols { grid-template-columns: 1fr; } .tiles { grid-template-columns: repeat(2, 1fr); } }
+  .cols2 { display: grid; grid-template-columns: 1fr 1.3fr; gap: 16px; margin-top: 16px; align-items: start; }
+  .qrow { display: grid; grid-template-columns: 1fr 140px 78px; gap: 12px; align-items: center; padding: 8px 16px; border-top: 1px solid #eef0f3; font-size: 13px; }
+  .qrow:first-of-type { border-top: 0; }
+  .qbar { height: 8px; background: #eef1f5; border-radius: 4px; overflow: hidden; }
+  .qbar span { display: block; height: 100%; background: #2a78d6; border-radius: 4px; }
+  .qv { text-align: right; font-variant-numeric: tabular-nums; }
+  .gchips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+  .gchip { font-size: 11px; background: var(--missing-bg); color: var(--missing); border-radius: 999px; padding: 1px 8px; cursor: help; }
+  @media (max-width: 1150px) { .top, .cols, .cols2 { grid-template-columns: 1fr; } .tiles { grid-template-columns: repeat(2, 1fr); } }
 </style>
 </head>
 <body>
@@ -64,7 +72,7 @@ const STATUS = { booked: ["Booked", "blue"], checked_in: ["Waiting", "amber"], i
 const CLAIM = { review: ["Needs review", "amber"], ready: ["Ready to submit", "blue"], denied: ["Denied", "red"], partial: ["Partly denied", "red"] };
 
 async function load() {
-  const d = await api("/api/dashboard");
+  const [d, q] = await Promise.all([api("/api/dashboard"), api("/api/care-gaps")]);
   const h = new Date().getHours();
   $("greet").textContent = (h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening") + ", Plano Community Clinic";
   $("today").textContent = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
@@ -117,6 +125,26 @@ async function load() {
           <div class="main"><b>${esc(c.name)}</b><div class="s">Claim #${c.claim_id} · ${money(c.amount)}${c.errors ? ` · ${c.errors} checker error${c.errors > 1 ? "s" : ""}` : ""}</div></div>
           <span class="badge ${CLAIM[c.status][1]}">${CLAIM[c.status][0]}</span></a>`).join("") || `<div class="none">✓ Nothing waiting.</div>`}
     </div>
+  </div>
+
+  <div class="cols2">
+    <div class="panel box"><h3>Quality measures <span class="muted small" style="font-weight:400">simplified CMS measures · all patients</span></h3>
+      ${q.measures.filter((m) => m.eligible).map((m) => {
+        const pct = Math.round(100 * m.met / m.eligible);
+        return `<div class="qrow" title="${esc(m.about)}"><div class="qn"><b>${esc(m.title)}</b> <span class="muted small">${esc(m.cms)}</span></div>
+          <div class="qbar"><span style="width:${pct}%"></span></div>
+          <div class="qv"><b>${pct}%</b> <span class="muted small">${m.met}/${m.eligible}</span></div></div>`;
+      }).join("")}
+      <div class="none" style="padding-top:6px;font-size:12px">Share of eligible patients meeting each measure. Quality scores affect Medicare (MIPS) and insurer bonus payments.</div>
+    </div>
+    <div class="panel box"><h3>Close care gaps today <span class="muted small" style="font-weight:400">${q.close_today.length} scheduled patients with open gaps</span></h3>
+      ${q.close_today.map((x) => `<div class="row">
+          <span class="t">${new Date(x.start).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>
+          <div class="main"><a href="/patient?id=${x.patient_id}"><b>${esc(x.patient)}</b></a>
+            <div class="gchips">${x.gaps.map((g) => `<span class="gchip" title="${esc(g.detail)}">${esc(g.title)}</span>`).join("")}</div></div>
+          <button class="btn small" data-start="${x.appointment_id}">${x.encounter_id ? "Open visit" : "Start visit"}</button>
+        </div>`).join("") || `<div class="none">✓ No open gaps for today's patients.</div>`}
+    </div>
   </div>`;
 
   $("content").querySelectorAll("[data-start]").forEach((btn) => btn.onclick = async () => {
@@ -134,7 +162,7 @@ $("resetBtn").onclick = async () => {
 
 let t;
 onEvent((ev) => {
-  if (["schedule_changed", "claim_updated", "claim_created", "rx_sent", "rx_updated", "crm_saved", "patient_created", "clinic_reset"].includes(ev.type)) {
+  if (["schedule_changed", "claim_updated", "claim_created", "rx_sent", "rx_updated", "crm_saved", "patient_created", "clinic_reset", "lab_resulted"].includes(ev.type)) {
     clearTimeout(t); t = setTimeout(load, 400);
   }
 });

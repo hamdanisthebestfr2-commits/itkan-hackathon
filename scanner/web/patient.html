@@ -45,10 +45,11 @@
 <script src="/static/patient-form.js"></script>
 <script src="/static/rx-form.js"></script>
 <script src="/static/labs.js"></script>
+<script src="/static/caregaps.js"></script>
 <script>
 renderNav("/patients");
 const patientId = Number(new URLSearchParams(location.search).get("id"));
-let patient = null, labResults = [];
+let patient = null, labResults = [], careGaps = [];
 
 const VITALS = [
   ["BP", (v) => v.bp_systolic ? `${v.bp_systolic}/${v.bp_diastolic ?? "?"}` : null, "mmHg",
@@ -69,7 +70,8 @@ function bmi(v) {
 
 async function load() {
   try {
-    [patient, labResults] = await Promise.all([api(`/api/patients/${patientId}`), api(`/api/patients/${patientId}/results`)]);
+    [patient, labResults, careGaps] = await Promise.all([api(`/api/patients/${patientId}`), api(`/api/patients/${patientId}/results`),
+                                                         api(`/api/patients/${patientId}/care-gaps`)]);
   } catch (e) {
     $("chart").innerHTML = `<div class="empty">${esc(e.message)}</div>`;
     return;
@@ -108,6 +110,10 @@ function render() {
 
   <div class="cols">
     <div>
+      <div class="panel card gaps-card">
+        <h3>Care gaps ${careGaps.some((g) => g.status === "open") ? `<span class="badge red" style="margin-left:4px">${careGaps.filter((g) => g.status === "open").length} open</span>` : ""}</h3>
+        ${gapRows(careGaps)}
+      </div>
       <div class="panel card">
         <h3>Insurance</h3>
         ${p.payer_name ? `<div class="kv">

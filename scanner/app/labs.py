@@ -201,9 +201,14 @@ def seed(patient_ids: list[int]) -> None:
     reset()
     now = datetime.now()
 
-    def past(pid, code, days, reviewed, comment=None):
+    def past(pid, code, days, reviewed, comment=None, value=None):
         oid = create_order(pid, None, 1, code, (now - timedelta(days=days)).isoformat(timespec="seconds"))
         _result(oid, announce=False)
+        if value is not None:  # match a number already written in the seeded visit note
+            rows = get_order(oid)["results"]
+            rows[0]["value"] = value
+            with clinic._conn() as con:
+                con.execute("UPDATE lab_orders SET results = ? WHERE id = ?", (json.dumps(rows), oid))
         when = (now - timedelta(days=days, hours=-14)).isoformat(timespec="seconds")  # back ~14 h after ordering
         with clinic._conn() as con:
             con.execute("UPDATE lab_orders SET resulted_at = ? WHERE id = ?", (when, oid))
@@ -211,7 +216,7 @@ def seed(patient_ids: list[int]) -> None:
                 con.execute("UPDATE lab_orders SET status = 'reviewed', reviewed_at = ?, reviewed_by = ?, provider_comment = ? "
                             "WHERE id = ?", (when, "Dr. Amina Rahman", comment, oid))
 
-    past(patient_ids[1], "A1C", 60, True, "Your A1c is 7.8%, above goal. Keep taking metformin and we'll review diet at your visit.")
+    past(patient_ids[1], "A1C", 60, True, "Your A1c is 7.8%, above goal. Keep taking metformin and we'll review diet at your visit.", 7.8)
     past(patient_ids[1], "LIPID", 60, True, "Cholesterol is high. Please keep taking atorvastatin every night.")
     past(patient_ids[0], "CMP", 92, True, "Kidney function and potassium are normal on lisinopril.")
     past(patient_ids[0], "LIPID", 1, False)   # waiting for review in the Clinical Inbox

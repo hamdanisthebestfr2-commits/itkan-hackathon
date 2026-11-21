@@ -6,7 +6,93 @@ planning, research and all the programming. The user handles the physical/CAD si
 
 ---
 
-## 0. ⭐ HACKATHON DAY PLAN (Sat Nov 21, 2026): read this first
+## ⭐ START HERE: current state + architecture map (updated Nov 21, 2026, about midday)
+
+**Where we are:** the Nov 20 platform (Phases 1-7) is done. On hackathon day, Track A (Claude) has finished
+A1 Ambient Notes, A2 EPCS, A3 Labs + Clinical Inbox and A4 Care gaps (all on branch `track-a`). Track B (partner,
+GitHub `talha18-sys`, branch `track-b`) finished B1 Patient Portal (merged into `main` at merge 1).
+**Next for Track A: A5 AI after-visit summary** (writes `encounters.summary`; the portal's "Visit summaries" tab reads it),
+then optionally "Ask the chart". After that comes merge 2 (`track-a` + `track-b` → `main`); see section 0 → Collaboration workflow.
+**How the user works:** build one task → test it → report in plain language → the user says OK → commit + push to
+`track-a` → next task. Keep CLAUDE.md updated *before* each commit.
+
+### How to run
+- User's app: double-click `scanner\start.bat` → http://127.0.0.1:8000/ (dashboard) + `/scan`. `run.py` detects an
+  already-running copy and just opens the browser. There is no auto-reload: restart after Python changes.
+- On demo morning (and after seed changes): Dashboard → **Reset demo data** (re-creates today's schedule).
+- **Tests never touch the user's app:** run a separate server on port 8010:
+  `cd scanner && LAB_SECONDS=3 DATA_DIR=<scratchpad>\testdata SMTP_PASS= CAMERA_NAME=none CAMERA_INDEX=9 .venv/Scripts/python.exe -m uvicorn app.main:app --port 8010`
+  (`DATA_DIR` = separate DB, empty `SMTP_PASS` = no emails, `CAMERA_*` = don't grab the webcam, `LAB_SECONDS` = fast mock lab).
+  API tests: httpx scripts. UI tests: Playwright with the installed Edge (`channel="msedge"`). JS syntax: `node --check`.
+  Test scripts live in the session scratchpad (not the repo); recreate them as needed. Be frugal with AI calls (free quota).
+
+### Stack
+FastAPI (one process, `scanner/app/main.py`) + SQLite (`scanner/data/`, or `DATA_DIR`) + plain HTML/JS pages
+(no build step) in `scanner/web/`, shared CSS in `web/static/app.css`, shared helpers in `web/static/shell.js`.
+AI = Google Gemini via `app/ai.py` only (free tier; model fallback lists in `config.py`). Live updates = Server-Sent
+Events: Python `events.broadcast({...})` → `/api/events` → one SharedWorker per browser (`static/events-worker.js`)
+→ `onEvent(fn)` in every page. Email = Gmail SMTP (`mailer.py`), only ever sent to `PHARMACY_EMAIL_OVERRIDE`.
+
+### Backend modules (`scanner/app/`)
+| Module | Owns | Key endpoints (all under `/api`) |
+|---|---|---|
+| `main.py` | app setup, `PAGES` (URL → html), scanner/camera routes, SSE, calls every module's `init()` | `/scan`, `/upload`, `/submit`, `/events`, `/crm/*` |
+| `config.py` | env/.env settings; model lists `READ_FALLBACKS`, `CODING_MODELS`, `SCRIBE_MODELS`; `DATA_DIR` | |
+| `ai.py` | the ONLY Gemini entry point: `await ai.generate(models, contents, schema, system, thinking)` → (parsed, model); falls back on 429/503/404/timeout; raises `ai.AIUnavailable` | |
+| `schema.py`, `reader.py`, `validate.py`, `camera.py`, `crm.py` | card scanner (fields, double read, validation/alerts, webcam, Salesforce-shaped mock CRM) | |
+| `clinic.py` | tables providers, payers, pharmacies, patients, appointments, encounters, prescriptions. `get_patient()` returns the patient + appointments + encounters (vitals JSON) + prescriptions | |
+| `clinic_api.py` | patients, schedule, visits, normal e-Rx, pharmacy inbox, demo reset | `/reference`, `/demo/reset`, `/patients…`, `/appointments…`, `/encounters…`, `/prescriptions…`, `/pharmacy/inbox` |
+| `seed.py` | all fictional demo data; calls `epcs.init()`, `portal.seed()`, `labs.seed()` | |
+| `drugs.py` | formulary + `CONTROLLED` (DEA schedules) + `allergy_conflicts()` | |
+| `epcs.py` (A2) | controlled-substance Rx: mock PDMP, rules, 2FA (PIN 2468 + emailed code) | `/pdmp/{pid}`, `/epcs/challenge`, `/epcs/sign` |
+| `ambient.py` (A1) | AI ambient notes (audio or transcript → SOAP draft) | `/encounters/{id}/ambient/audio`, `/…/transcript` |
+| `labs.py` (A3) | `lab_orders` table, mock lab, review | `/labs/catalog`, `/encounters/{id}/labs`, `/labs/{id}/result-now`, `/labs/{id}/review`, `/patients/{id}/results` |
+| `inbox.py` (A3) | Clinical Inbox list + refill approve/deny + AI reply drafts (reads Track B's `messages`) | `/inbox`, `/inbox/count`, `/inbox/refills/{id}/approve` and `/deny`, `/inbox/messages/{id}/draft` |
+| `caregaps.py` (A4) | 7 quality measures computed from the chart | `/patients/{id}/care-gaps`, `/care-gaps` |
+| `codes.py`, `coder.py`, `billing.py`, `billing_api.py` | code lists, AI coding (sees the note + Rx + ordered labs), `claims` table + claim checker, billing API | `/claims…`, `/codes` |
+| `payer.py`, `appeals.py` | mock insurer (remittance, CARC denials), AI denial fighter | via `/claims/{id}/submit`, `/denial/analyze`, `/appeal/submit` |
+| `dashboard.py` | dashboard numbers + time-saved estimate | `/dashboard` |
+| `mailer.py`, `events.py` | email (Rx, EPCS code), SSE broadcast | |
+| `portal.py` (Track B) | `messages` table + patient portal | `/portal/{pid}…`, `/messages`, `/messages/{id}` (PATCH), `/messages/{id}/reply` |
+
+Each module's `init()` creates its tables (plus `ALTER TABLE` auto-migrations for new columns). "Reset demo data" runs
+`seed.seed()`, which clears and re-creates everything. **To add a module:** call its `init()` in `main.py` startup,
+add its router with `app.include_router`, add any page to `PAGES` (and a nav link in `shell.js`), and add a `seed()`
+hook in `seed.py` if it has demo data.
+
+### Pages (`scanner/web/`) and shared scripts (`web/static/`)
+- `/` dashboard.html: KPIs, AI time saved, up next, follow-ups, billing to-do, **Quality measures + Close care gaps today**.
+- `/schedule` · `/inbox` (A3) · `/patients` · `/patient?id=` chart (care gaps, labs, visits, Rx).
+- `/visit?id=`: vitals, ambient AI notes, note + dictation, Rx incl. EPCS, **lab orders**, **care gaps card**, sign.
+- `/scan` card scanner · `/billing?claim=` · `/claim-form?id=` · `/pharmacy` mock pharmacy · `/savings` · `/crm` ·
+  `/portal` (Track B patient portal).
+- Shared JS:
+  - `shell.js`: nav incl. the Inbox badge, `api()`, `esc`, `fmtDate`, `toast`, `openModal`, `onEvent`.
+  - `rx-form.js`: normal + EPCS prescribing.
+  - `ambient.js`.
+  - `labs.js`: `labTable`, `labStatus`, `setupLabs`.
+  - `caregaps.js`: `gapRows`, `setupCareGaps`.
+  - `patient-form.js`, `events-worker.js`.
+
+### Live events (type → who listens)
+- `schedule_changed`, `clinic_reset`, `patient_created`, `crm_saved`.
+- `rx_sent` / `rx_updated`: pharmacy, visit, chart.
+- `claim_created` / `claim_updated`: billing, visit, dashboard.
+- `lab_ordered` / `lab_resulted` / `lab_reviewed`: visit lab card, chart, inbox, nav badge, dashboard.
+- `message_created` / `message_updated`: inbox, portal, nav badge.
+- `toast`.
+
+### Demo story additions from today
+- **Visit page:**
+  - Record the conversation → AI SOAP draft (A1).
+  - Prescribe tramadol → PDMP + two-factor signing (A2).
+  - Order TSH/A1c → the result arrives in the Inbox about 20 s later → review it with a note → the patient sees it in the portal (A3).
+  - Robert Nguyen's 1 PM annual physical: 3 care gaps (BP follow-up, BMI plan, tobacco) closed in 3 clicks (A4).
+- **Inbox:** approve James's metformin refill (it goes to the pharmacy + email + a portal reply); AI-draft a reply to Aisha.
+
+---
+
+## 0. HACKATHON DAY PLAN (Sat Nov 21, 2026): plan + detailed progress log
 The platform from Phases 1-7 (sections 3-4) is **done and working**. Today (~7 h at the event) we add the
 athenaOne features we're missing, built by **two people in parallel**: Claude on Track A, the user/partner on Track B.
 Status: plan approved. The user said to **start Track A directly** (skeleton/partner setup still pending; the partner's
@@ -55,7 +141,7 @@ GitHub username and judging time haven't been given yet).
   `GET /api/messages`, `PATCH /api/messages/{id}`, `POST /api/messages/{id}/reply` (events `message_created`/`message_updated`).
   Also a fix: all tabs share ONE SSE stream via a SharedWorker (`static/events-worker.js`) because browsers cap 6 connections
   per site (5+ tabs used to hang); the scan page releases the camera stream while hidden; `api()` retries GETs during restarts.
-- ✅ **A3 Lab orders + results + Clinical Inbox** (not yet committed when written): `app/labs.py` (`lab_orders` table; `CATALOG`
+- ✅ **A3 Lab orders + results + Clinical Inbox** (commit `9adfdb1` on `track-a`): `app/labs.py` (`lab_orders` table; `CATALOG`
   CBC/CMP/LIPID/A1C/TSH/GLU/UA with CPTs; **mock lab** returns chart-consistent values (diabetic → high A1c, hypothyroid →
   high TSH, obesity/HLD → high lipids, UTI → positive UA), deterministic per order, after `LAB_SECONDS` (env, default 20;
   "Result now (demo)" button); flags H/L/A; `POST/GET /api/encounters/{id}/labs`, `POST /api/labs/{id}/result-now`,
@@ -69,7 +155,18 @@ GitHub username and judging time haven't been given yet).
   (lab card on the visit page, results panel on the chart). Coder prompt now lists labs ordered at the visit (billable);
   CPT 80053 added. Patients see results immediately in the portal (Cures Act style); the review adds a note.
   Tested: API 18/18, UI 11/11 (+ AI draft 1 s), EPCS regression 17/17.
-- ⏭ Next: A4 Care gaps / quality measures, then A5 AI after-visit summary (`encounters.summary`).
+- ✅ **A4 Care gaps / quality measures** (committed on `track-a` right after this note): `app/caregaps.py`: 7 simplified measures computed
+  live from the chart: CMS165 BP control (HTN, latest BP <140/90), CMS22 elevated-BP follow-up (no HTN dx, BP ≥130/80 →
+  note mentions BP + a plan), CMS122 A1c (diabetes: A1c ≤6 months and <8%; pending order = "waiting"), CMS347 statin
+  (diabetes/HLD 40-75), CMS69 BMI (+ weight plan if ≥30), CMS138 tobacco (screened via card `smoking` field or note;
+  users need cessation counseling), AWV (65+, annual visit). **Only clinician notes count** (screening-card advice text
+  doesn't). Open gaps carry `close` {kind lab|note|vitals|rx|book}. `GET /api/patients/{id}/care-gaps`, `GET /api/care-gaps`
+  (per-measure met/eligible + today's scheduled patients with open gaps). UI `web/static/caregaps.js`: visit-page side
+  card with one-click close (Order A1c / Add to note / Go to vitals) that updates live after autosave ("✓ Care gap closed"
+  toast); chart "Care gaps" panel; dashboard "Quality measures" bars + "Close care gaps today" list.
+  Seed: heights + `smoking: No` on past visits; **Robert's fair card = BP 168/104, BMI 31.6, smoker** (3 gaps, closed live
+  at his 1 PM annual physical, a good demo moment); James's seeded A1c pinned to 7.8. Tested 14/14 + A3/EPCS regressions.
+- ⏭ Next: A5 AI after-visit summary (`encounters.summary`, the portal shows it).
 
 ### Research summary: athenaOne vs. us (Nov 21)
 athenaOne = athenaClinicals (EHR) + athenaCollector (practice management/billing) + athenaCommunicator (patients).
@@ -213,7 +310,7 @@ Webcam → auto-detect card → hold steady 0.8 s → beep → best frame flatte
 parallel with two different models** → merge (fields where the reads disagree are flagged) → validation → review
 screen → Enter → saved to the mock CRM → the record "types itself in" on the CRM page.
 
-### Files
+### Files (scanner part; the full module map is in ⭐ START HERE at the top)
 | File | What it does |
 |---|---|
 | `scanner/app/schema.py` | **Single source of truth for card fields** (`FIELDS`), plus the Pydantic `FieldReading`/`CardReading` (value, confidence, alternatives, note, `box_2d`) |
@@ -527,7 +624,7 @@ user's OK before starting the next phase. Before big new scope, present the plan
   `httpx.Client()`: the server answers in about 6-8 ms.
 - Check inline page JS syntax: extract the `<script>` blocks and run `node --check` (Node v24 is installed).
 
-### Architecture
+### Architecture (the original Nov 20 plan; for what actually exists see ⭐ START HERE at the top)
 - **Grow the existing FastAPI app** (same server, same port, no build step, plain HTML/JS + shared CSS). Rename
   the folder/app only if the user picks a name.
 - **Same SQLite DB**, with new tables: `providers`, `patients` (demographics + insurance: payer, member ID, group),
@@ -597,4 +694,4 @@ shows a denial, and the AI writes the appeal → dashboard: "this clinic would p
 - After changing reader or prompt logic, run `scanner\.venv\Scripts\python.exe scanner\eval\run_eval.py`.
 - Verify UI changes with headless Edge screenshots; verify APIs with small httpx scripts.
 - Keep the demo safe: everything should degrade gracefully (AI error → manual entry; no SMTP → in-app inbox).
-- Don't commit or print `.env`. There is no git repo yet.
+- Don't commit or print `.env`. The repo is on GitHub (section 6); run the secret grep before every commit.

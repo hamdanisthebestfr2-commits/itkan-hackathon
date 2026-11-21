@@ -18,6 +18,7 @@ from .billing_api import router as billing_router
 from .clinic_api import router as clinic_router
 from .dashboard import router as dashboard_router
 from .epcs import router as epcs_router
+from .caregaps import router as caregaps_router
 from .inbox import router as inbox_router
 from .labs import router as labs_router
 from .portal import router as portal_router  # Track B
@@ -91,6 +92,7 @@ app.include_router(ambient_router)
 app.include_router(epcs_router)
 app.include_router(labs_router)
 app.include_router(inbox_router)
+app.include_router(caregaps_router)
 app.include_router(portal_router)  # Track B
 app.mount("/scans", StaticFiles(directory=config.SCANS_DIR), name="scans")
 app.mount("/static", StaticFiles(directory=config.WEB_DIR / "static"), name="static")

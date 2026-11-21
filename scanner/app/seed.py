@@ -66,18 +66,20 @@ TOMORROW = [
 
 # Past visits so charts have history: patient#, provider#, days ago, vitals, note
 PAST_VISITS = [
-    (1, 1, 92, {"bp_systolic": "152", "bp_diastolic": "94", "heart_rate": "78", "weight_lbs": "168", "spo2": "98"},
+    (1, 1, 92, {"bp_systolic": "152", "bp_diastolic": "94", "heart_rate": "78", "weight_lbs": "168", "height_ft": "5", "height_in": "4", "spo2": "98", "smoking": "No"},
      "BP elevated at 152/94. Started lisinopril 10 mg daily. Low-sodium diet counseling. Recheck in 3 months."),
-    (2, 2, 60, {"bp_systolic": "134", "bp_diastolic": "82", "heart_rate": "72", "weight_lbs": "201", "blood_glucose": "168"},
+    (2, 2, 60, {"bp_systolic": "134", "bp_diastolic": "82", "heart_rate": "72", "weight_lbs": "201", "height_ft": "5", "height_in": "10", "blood_glucose": "168", "smoking": "No"},
      "Type 2 diabetes, A1c 7.8. Continue metformin 500 mg BID, discussed diet and exercise. Statin continued."),
-    (9, 1, 45, {"bp_systolic": "146", "bp_diastolic": "88", "heart_rate": "80", "weight_lbs": "155", "spo2": "97"},
+    (9, 1, 45, {"bp_systolic": "146", "bp_diastolic": "88", "heart_rate": "80", "weight_lbs": "155", "height_ft": "5", "height_in": "3", "spo2": "97", "smoking": "No"},
      "Hypertension not at goal. Increased amlodipine to 5 mg. Knee osteoarthritis, acetaminophen as needed."),
-    (3, 3, 20, {"bp_systolic": "122", "bp_diastolic": "78", "heart_rate": "104", "respiratory_rate": "24", "spo2": "93"},
+    (3, 3, 20, {"bp_systolic": "122", "bp_diastolic": "78", "heart_rate": "104", "respiratory_rate": "24", "spo2": "93",
+         "weight_lbs": "140", "height_ft": "5", "height_in": "5", "smoking": "No"},
      "Acute asthma exacerbation for 2 days after a cold: wheezing, chest tightness, using albuterol every 3 hours. "
      "Exam: diffuse expiratory wheezes, SpO2 93%. Nebulizer treatment given in clinic with improvement. "
      "Spirometry performed during the exacerbation: FEV1 62% of predicted. Assessment: asthma with acute exacerbation. "
      "Plan: prednisone 40 mg daily for 5 days, continue albuterol, recheck in 1 week."),
-    (8, 2, 35, {"bp_systolic": "126", "bp_diastolic": "82", "heart_rate": "74", "blood_glucose": "102"},
+    (8, 2, 35, {"bp_systolic": "126", "bp_diastolic": "82", "heart_rate": "74", "blood_glucose": "102",
+         "weight_lbs": "172", "height_ft": "5", "height_in": "8", "smoking": "No"},
      "Heartburn after meals for 3 weeks, worse lying down. No weight loss, no trouble swallowing. Fingerstick glucose 102 "
      "(patient asked about diabetes risk). Assessment: GERD without esophagitis. Plan: omeprazole 20 mg daily before "
      "breakfast, avoid late meals, follow up in 6 weeks."),
@@ -165,7 +167,8 @@ def seed() -> None:
 
     # A health-fair screening from yesterday that flagged high blood pressure (shows on the dashboard).
     from .validate import clinical_alerts
-    fair_vitals = {"bp_systolic": "168", "bp_diastolic": "104", "heart_rate": "88", "spo2": "97", "blood_glucose": "132"}
+    fair_vitals = {"bp_systolic": "168", "bp_diastolic": "104", "heart_rate": "88", "spo2": "97", "blood_glucose": "132",
+                   "height_ft": "5", "height_in": "9", "weight_lbs": "214", "smoking": "Yes"}
     alerts = clinical_alerts(fair_vitals)
     clinic.create_encounter({
         "patient_id": ids[3], "date": (today - timedelta(days=1)).isoformat(), "type": "screening",
