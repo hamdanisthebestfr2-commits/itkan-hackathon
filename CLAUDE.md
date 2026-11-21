@@ -44,7 +44,19 @@ GitHub username and judging time haven't been given yet).
 - **Testing isolation (important):** the user may have the app running. Run test servers on **port 8010** with
   `DATA_DIR=<scratchpad>\testdata SMTP_PASS= CAMERA_NAME=none CAMERA_INDEX=9` (new `DATA_DIR` env in `config.py`) so
   tests never reset the user's demo DB, grab the camera, or send email.
-- ⏭ Next: A3 Lab orders + results + Clinical Inbox.
+- **Merge 1 (about 10:45, Nov 21):** `track-a` (A1+A2) + `track-b` (B1) → `main` (merge commit `7fc0fab`). The only
+  conflicts were in `main.py` (both tracks added imports/init/routers; kept both). Tested on the merged code: EPCS 17/17 + 9/9,
+  10 pages loading with 10 tabs open, live updates OK, no page errors. Local `track-a` was fast-forwarded to `main`.
+  **The partner should run `git pull origin main` into `track-b` before continuing.**
+- **Track B so far (partner = GitHub `talha18-sys`):** ✅ **B1 Patient Portal** `/portal` (`app/portal.py`, `web/portal.html`):
+  demo sign-in by picking a patient; appointments + request; message threads; refill requests; test results (reads
+  Track A's `GET /api/patients/{id}/results`, **not built yet: A3 must add it**); visit summaries (`encounters.summary`,
+  **A5 writes it**); billing placeholder. It owns the `messages` table; staff endpoints for the Clinical Inbox:
+  `GET /api/messages`, `PATCH /api/messages/{id}`, `POST /api/messages/{id}/reply` (events `message_created`/`message_updated`).
+  Also a fix: all tabs share ONE SSE stream via a SharedWorker (`static/events-worker.js`) because browsers cap 6 connections
+  per site (5+ tabs used to hang); the scan page releases the camera stream while hidden; `api()` retries GETs during restarts.
+- ⏭ Next: A3 Lab orders + results + Clinical Inbox (must provide `GET /api/patients/{id}/results` for the portal and
+  read/act on `messages`).
 
 ### Research summary: athenaOne vs. us (Nov 21)
 athenaOne = athenaClinicals (EHR) + athenaCollector (practice management/billing) + athenaCommunicator (patients).
