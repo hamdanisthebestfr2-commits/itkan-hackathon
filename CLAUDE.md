@@ -9,10 +9,10 @@ planning, research and all the programming. The user handles the physical/CAD si
 ## ⭐ START HERE: current state + architecture map (updated Nov 21, 2026, about midday)
 
 **Where we are:** the Nov 20 platform (Phases 1-7) is done. On hackathon day, Track A (Claude) has finished
-A1 Ambient Notes, A2 EPCS, A3 Labs + Clinical Inbox and A4 Care gaps (all on branch `track-a`). Track B (partner,
+A1 Ambient Notes, A2 EPCS, A3 Labs + Clinical Inbox, A4 Care gaps (pushed to `track-a`) and A5 AI after-visit
+summary (built + tested; commit it once the user OKs it). Track B (partner,
 GitHub `talha18-sys`, branch `track-b`) finished B1 Patient Portal (merged into `main` at merge 1).
-**Next for Track A: A5 AI after-visit summary** (writes `encounters.summary`; the portal's "Visit summaries" tab reads it),
-then optionally "Ask the chart". After that comes merge 2 (`track-a` + `track-b` → `main`); see section 0 → Collaboration workflow.
+**Next for Track A:** optional A6 "Ask the chart" AI assistant (like athenaOne's Sage), or polish/merge prep. After that comes merge 2 (`track-a` + `track-b` → `main`); see section 0 → Collaboration workflow.
 **How the user works:** build one task → test it → report in plain language → the user says OK → commit + push to
 `track-a` → next task. Keep CLAUDE.md updated *before* each commit.
 
@@ -42,13 +42,14 @@ Events: Python `events.broadcast({...})` → `/api/events` → one SharedWorker 
 | `schema.py`, `reader.py`, `validate.py`, `camera.py`, `crm.py` | card scanner (fields, double read, validation/alerts, webcam, Salesforce-shaped mock CRM) | |
 | `clinic.py` | tables providers, payers, pharmacies, patients, appointments, encounters, prescriptions. `get_patient()` returns the patient + appointments + encounters (vitals JSON) + prescriptions | |
 | `clinic_api.py` | patients, schedule, visits, normal e-Rx, pharmacy inbox, demo reset | `/reference`, `/demo/reset`, `/patients…`, `/appointments…`, `/encounters…`, `/prescriptions…`, `/pharmacy/inbox` |
-| `seed.py` | all fictional demo data; calls `epcs.init()`, `portal.seed()`, `labs.seed()` | |
+| `seed.py` | all fictional demo data; calls `epcs.init()`, `portal.seed()`, `labs.seed()`, `summary.seed()` | |
 | `drugs.py` | formulary + `CONTROLLED` (DEA schedules) + `allergy_conflicts()` | |
 | `epcs.py` (A2) | controlled-substance Rx: mock PDMP, rules, 2FA (PIN 2468 + emailed code) | `/pdmp/{pid}`, `/epcs/challenge`, `/epcs/sign` |
 | `ambient.py` (A1) | AI ambient notes (audio or transcript → SOAP draft) | `/encounters/{id}/ambient/audio`, `/…/transcript` |
 | `labs.py` (A3) | `lab_orders` table, mock lab, review | `/labs/catalog`, `/encounters/{id}/labs`, `/labs/{id}/result-now`, `/labs/{id}/review`, `/patients/{id}/results` |
 | `inbox.py` (A3) | Clinical Inbox list + refill approve/deny + AI reply drafts (reads Track B's `messages`) | `/inbox`, `/inbox/count`, `/inbox/refills/{id}/approve` and `/deny`, `/inbox/messages/{id}/draft` |
 | `caregaps.py` (A4) | 7 quality measures computed from the chart | `/patients/{id}/care-gaps`, `/care-gaps` |
+| `summary.py` (A5) | AI after-visit summary: `encounters.summary` (sent text the portal shows), `summary_draft`, `summary_language`, `summary_status` (none/drafting/draft/failed/sent), `summary_sent_at`, `summary_ai`. Drafted in the background on signing (`draft_on_sign`, hooked in `clinic_api.save_encounter`) | `/encounters/{id}/summary` (GET), `/…/summary/draft` {language}, `/…/summary/send` {text} (signed visits only; also posts a portal message) |
 | `codes.py`, `coder.py`, `billing.py`, `billing_api.py` | code lists, AI coding (sees the note + Rx + ordered labs), `claims` table + claim checker, billing API | `/claims…`, `/codes` |
 | `payer.py`, `appeals.py` | mock insurer (remittance, CARC denials), AI denial fighter | via `/claims/{id}/submit`, `/denial/analyze`, `/appeal/submit` |
 | `dashboard.py` | dashboard numbers + time-saved estimate | `/dashboard` |
@@ -63,7 +64,7 @@ hook in `seed.py` if it has demo data.
 ### Pages (`scanner/web/`) and shared scripts (`web/static/`)
 - `/` dashboard.html: KPIs, AI time saved, up next, follow-ups, billing to-do, **Quality measures + Close care gaps today**.
 - `/schedule` · `/inbox` (A3) · `/patients` · `/patient?id=` chart (care gaps, labs, visits, Rx).
-- `/visit?id=`: vitals, ambient AI notes, note + dictation, Rx incl. EPCS, **lab orders**, **care gaps card**, sign.
+- `/visit?id=`: vitals, ambient AI notes, note + dictation, **after-visit summary card**, Rx incl. EPCS, **lab orders**, **care gaps card**, sign.
 - `/scan` card scanner · `/billing?claim=` · `/claim-form?id=` · `/pharmacy` mock pharmacy · `/savings` · `/crm` ·
   `/portal` (Track B patient portal).
 - Shared JS:
@@ -72,6 +73,7 @@ hook in `seed.py` if it has demo data.
   - `ambient.js`.
   - `labs.js`: `labTable`, `labStatus`, `setupLabs`.
   - `caregaps.js`: `gapRows`, `setupCareGaps`.
+  - `avs.js`: `setupAvs` (summary draft/edit/language/send/print).
   - `patient-form.js`, `events-worker.js`.
 
 ### Live events (type → who listens)
@@ -80,6 +82,7 @@ hook in `seed.py` if it has demo data.
 - `claim_created` / `claim_updated`: billing, visit, dashboard.
 - `lab_ordered` / `lab_resulted` / `lab_reviewed`: visit lab card, chart, inbox, nav badge, dashboard.
 - `message_created` / `message_updated`: inbox, portal, nav badge.
+- `summary_updated` (drafting/draft/failed/sent): visit summary card; the portal reloads on it (it carries `patient_id`).
 - `toast`.
 
 ### Demo story additions from today
@@ -88,6 +91,8 @@ hook in `seed.py` if it has demo data.
   - Prescribe tramadol → PDMP + two-factor signing (A2).
   - Order TSH/A1c → the result arrives in the Inbox about 20 s later → review it with a note → the patient sees it in the portal (A3).
   - Robert Nguyen's 1 PM annual physical: 3 care gaps (BP follow-up, BMI plan, tobacco) closed in 3 clicks (A4).
+  - Sign Linda's visit → the AI after-visit summary is drafted in about 2 s → switch to Spanish → send → it appears in her
+    portal's Visit summaries with a "your summary is ready" message (A5).
 - **Inbox:** approve James's metformin refill (it goes to the pharmacy + email + a portal reply); AI-draft a reply to Aisha.
 
 ---
@@ -155,7 +160,7 @@ GitHub username and judging time haven't been given yet).
   (lab card on the visit page, results panel on the chart). Coder prompt now lists labs ordered at the visit (billable);
   CPT 80053 added. Patients see results immediately in the portal (Cures Act style); the review adds a note.
   Tested: API 18/18, UI 11/11 (+ AI draft 1 s), EPCS regression 17/17.
-- ✅ **A4 Care gaps / quality measures** (committed on `track-a` right after this note): `app/caregaps.py`: 7 simplified measures computed
+- ✅ **A4 Care gaps / quality measures** (commit `8bc40bd` on `track-a`): `app/caregaps.py`: 7 simplified measures computed
   live from the chart: CMS165 BP control (HTN, latest BP <140/90), CMS22 elevated-BP follow-up (no HTN dx, BP ≥130/80 →
   note mentions BP + a plan), CMS122 A1c (diabetes: A1c ≤6 months and <8%; pending order = "waiting"), CMS347 statin
   (diabetes/HLD 40-75), CMS69 BMI (+ weight plan if ≥30), CMS138 tobacco (screened via card `smoking` field or note;
@@ -166,7 +171,15 @@ GitHub username and judging time haven't been given yet).
   toast); chart "Care gaps" panel; dashboard "Quality measures" bars + "Close care gaps today" list.
   Seed: heights + `smoking: No` on past visits; **Robert's fair card = BP 168/104, BMI 31.6, smoker** (3 gaps, closed live
   at his 1 PM annual physical, a good demo moment); James's seeded A1c pinned to 7.8. Tested 14/14 + A3/EPCS regressions.
-- ⏭ Next: A5 AI after-visit summary (`encounters.summary`, the portal shows it).
+- ✅ **A5 AI after-visit summary** (`app/summary.py`, `web/static/avs.js`): signing a visit drafts a 6th-grade-level
+  summary in the background (sections: Why you came in / What we found / Your medicines / Tests / What to do next /
+  When to get help). The prompt forbids new facts, says "Stop: old dose / Start: new dose" for changes, explains lab
+  values, and has no jargon or markdown. **7 languages** (English, Spanish, Arabic, Urdu, Vietnamese, Chinese, Hindi; RTL
+  for Arabic/Urdu) with correct accents. The provider edits it → "Send to patient portal" (409 unless signed) →
+  `encounters.summary` + portal message "Your visit summary … is ready"; Re-draft keeps the sent version until re-sent;
+  Print. Seed: summaries on Maria's and Aisha's past visits. Dashboard time saved includes 5 min per summary sent.
+  Tested 16/16 (draft about 1.7 s after signing) + regressions (care gaps 14, labs 18+11, EPCS 17).
+- ⏭ Next: optional A6 "Ask the chart"; then merge 2 with `track-b`.
 
 ### Research summary: athenaOne vs. us (Nov 21)
 athenaOne = athenaClinicals (EHR) + athenaCollector (practice management/billing) + athenaCommunicator (patients).

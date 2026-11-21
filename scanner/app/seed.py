@@ -191,3 +191,6 @@ def seed() -> None:
 
     from . import labs  # Track A3: lab history + results waiting for review in the Clinical Inbox
     labs.seed(ids)
+
+    from . import summary  # Track A5: after-visit summaries for two past visits (shown in the portal)
+    summary.seed(ids)

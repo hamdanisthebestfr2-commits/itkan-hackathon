@@ -53,6 +53,7 @@
 <script src="/static/ambient.js"></script>
 <script src="/static/labs.js"></script>
 <script src="/static/caregaps.js"></script>
+<script src="/static/avs.js"></script>
 <script>
 renderNav("/schedule");
 const encId = Number(new URLSearchParams(location.search).get("id"));
@@ -129,6 +130,8 @@ function render() {
         <div class="interim" id="interim"></div>
       </div>
 
+      <div class="panel card" id="avsCard"></div>
+
       <div class="panel card">
         <h3>Prescriptions this visit</h3>
         <div id="rxList"></div>
@@ -161,6 +164,7 @@ function render() {
   renderRx();
   updateVitalFlags();
   setupLabs($("labsCard"), { encId, locked });
+  setupAvs($("avsCard"), { encId, patientName: p.first_name });
   gapsUi = setupCareGaps($("gapsCard"), {
     patientId: p.id, encId, locked,
     insertNote: (text) => insertNote(text),

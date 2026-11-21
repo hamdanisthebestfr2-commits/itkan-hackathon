@@ -16,6 +16,7 @@ MINUTES_SAVED = {
     "card": 2.5,     # typing one 25-field intake card by hand
     "coding": 7.0,   # a coder reading a note and picking ICD-10/CPT codes
     "appeal": 30.0,  # researching a denial and writing an appeal letter
+    "summary": 5.0,  # writing a patient-friendly after-visit summary
 }
 
 
@@ -74,7 +75,10 @@ def summary() -> dict:
             if c["appeal"].get("status") == "approved":
                 appeals_won += 1
                 recovered += c["appeal"].get("recovered") or 0
-    minutes = scans_total * MINUTES_SAVED["card"] + coded_by_ai * MINUTES_SAVED["coding"] + appeals_drafted * MINUTES_SAVED["appeal"]
+    with clinic._conn() as con:
+        summaries = con.execute("SELECT count(*) FROM encounters WHERE summary_ai = 1 AND summary IS NOT NULL").fetchone()[0]
+    minutes = (scans_total * MINUTES_SAVED["card"] + coded_by_ai * MINUTES_SAVED["coding"]
+               + appeals_drafted * MINUTES_SAVED["appeal"] + summaries * MINUTES_SAVED["summary"])
 
     action_items = [{"claim_id": c["id"], "name": f"{c['first_name']} {c['last_name']}", "status": c["status"],
                      "amount": c["total_charge"], "errors": c["issues"]["error"]}
@@ -98,7 +102,7 @@ def summary() -> dict:
         },
         "ai": {"cards_read": scans_total, "visits_coded": coded_by_ai, "codes_suggested": ai_suggested,
                "acceptance_rate": round(100 * ai_accepted / ai_decided) if ai_decided else None,
-               "appeals_drafted": appeals_drafted, "appeals_won": appeals_won},
+               "appeals_drafted": appeals_drafted, "appeals_won": appeals_won, "summaries_sent": summaries},
         "time_saved_minutes": round(minutes),
         "assumptions": MINUTES_SAVED,
         "follow_ups": follow_ups,

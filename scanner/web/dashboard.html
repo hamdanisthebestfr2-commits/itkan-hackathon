@@ -83,8 +83,8 @@ async function load() {
     <div class="panel hero">
       <div class="lbl">Staff time saved by AI so far</div>
       <div class="big">${hm(d.time_saved_minutes)}</div>
-      <div class="det">${ai.cards_read} intake card${ai.cards_read === 1 ? "" : "s"} read · ${ai.visits_coded} visit${ai.visits_coded === 1 ? "" : "s"} coded · ${ai.appeals_drafted} appeal${ai.appeals_drafted === 1 ? "" : "s"} drafted</div>
-      <div class="how" title="Estimate: ${A.card} min to type a card by hand, ${A.coding} min to code a visit, ${A.appeal} min to research and write an appeal.">How is this estimated?</div>
+      <div class="det">${ai.cards_read} intake card${ai.cards_read === 1 ? "" : "s"} read · ${ai.visits_coded} visit${ai.visits_coded === 1 ? "" : "s"} coded · ${ai.appeals_drafted} appeal${ai.appeals_drafted === 1 ? "" : "s"} drafted · ${ai.summaries_sent} visit summar${ai.summaries_sent === 1 ? "y" : "ies"}</div>
+      <div class="how" title="Estimate: ${A.card} min to type a card by hand, ${A.coding} min to code a visit, ${A.appeal} min to research and write an appeal, ${A.summary} min to write a patient visit summary.">How is this estimated?</div>
     </div>
     <div class="tiles">
       <a class="panel tile" href="/schedule"><div class="lbl">Appointments today</div><div class="val">${ap.total}</div>

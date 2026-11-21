@@ -190,3 +190,15 @@ table.labres .flag.L { background: #e8f0fb; color: #1d4f91; }
 .gaps-card .gap.open .gd { color: #7a3b33; }
 .gaps-card .cms { font-size: 10px; font-weight: 700; color: #6b7686; background: #eef1f5; border-radius: 4px; padding: 0 5px; cursor: help; }
 .gaps-card .btn.small { white-space: nowrap; }
+
+/* AI after-visit summary (visit page) + shared AI/warning notes */
+.aibox { background: #f6f3ff; border: 1px solid #ddd3fb; border-radius: 8px; padding: 6px 10px; font-size: 12px; color: #5b3fb5; margin-bottom: 8px; }
+.warnbox { background: #fff1f0; border: 1px solid #f5c2bd; color: #8a1c12; border-radius: 8px; padding: 8px 12px; font-size: 13px; margin: 8px 0; }
+.avs-text { width: 100%; min-height: 300px; box-sizing: border-box; font: 14px/1.5 inherit; font-family: inherit; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; resize: vertical; }
+.avs-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.avs-actions .sp { flex: 1; }
+.avs-actions select { padding: 4px 8px; }
+.avs-sent { background: var(--ok-bg); color: var(--ok); border-radius: 8px; padding: 7px 12px; font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+.avs-busy { display: flex; gap: 10px; align-items: center; color: var(--muted); padding: 14px 0; }
+.avs-busy .spinner { width: 16px; height: 16px; border: 2px solid #d6dbe3; border-top-color: var(--brand); border-radius: 50%; animation: avsspin .8s linear infinite; }
+@keyframes avsspin { to { transform: rotate(360deg); } }

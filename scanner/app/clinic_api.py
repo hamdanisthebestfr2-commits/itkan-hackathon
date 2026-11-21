@@ -199,6 +199,8 @@ async def save_encounter(enc_id: int, body: EncounterUpdate):
         broadcast({"type": "claim_created", "claim_id": claim_id, "encounter_id": enc_id})
         start_coding(claim_id)
         result["claim_id"] = claim_id
+        from . import summary
+        summary.draft_on_sign(enc_id)   # A5: AI after-visit summary draft, sent to the patient after review
     return result
 
 
