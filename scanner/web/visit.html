@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="iris-boot">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -54,6 +54,7 @@
 <script src="/static/labs.js"></script>
 <script src="/static/caregaps.js"></script>
 <script src="/static/avs.js"></script>
+<script src="/static/askchart.js"></script>
 <script>
 renderNav("/schedule");
 const encId = Number(new URLSearchParams(location.search).get("id"));
@@ -165,6 +166,7 @@ function render() {
   updateVitalFlags();
   setupLabs($("labsCard"), { encId, locked });
   setupAvs($("avsCard"), { encId, patientName: p.first_name });
+  setupAskChart({ patientId: p.id, patientName: `${p.first_name} ${p.last_name}` });  // A6
   gapsUi = setupCareGaps($("gapsCard"), {
     patientId: p.id, encId, locked,
     insertNote: (text) => insertNote(text),

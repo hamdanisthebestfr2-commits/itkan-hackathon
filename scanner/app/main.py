@@ -18,6 +18,7 @@ from .billing_api import router as billing_router
 from .clinic_api import router as clinic_router
 from .dashboard import router as dashboard_router
 from .epcs import router as epcs_router
+from .askchart import router as askchart_router
 from .caregaps import router as caregaps_router
 from .inbox import router as inbox_router
 from .summary import router as summary_router
@@ -86,10 +87,14 @@ async def lifespan(app: FastAPI):
     reminders.init()  # Track B
     if clinic.is_empty():
         seed.seed()
-    camera = Camera(pick_camera(config.CAMERA_NAME, config.CAMERA_INDEX), on_camera_capture)
-    camera.start()
+    # CAMERA_NAME=none means NO camera (test servers, machines without the scanner webcam). It must never
+    # fall back to "some other real camera": that once grabbed the webcam from a test run.
+    if config.CAMERA_NAME.strip().lower() not in ("none", "off", "disabled"):
+        camera = Camera(pick_camera(config.CAMERA_NAME, config.CAMERA_INDEX), on_camera_capture)
+        camera.start()
     yield
-    camera.stop()
+    if camera:
+        camera.stop()
 
 
 app = FastAPI(lifespan=lifespan)
@@ -102,6 +107,7 @@ app.include_router(labs_router)
 app.include_router(inbox_router)
 app.include_router(caregaps_router)
 app.include_router(summary_router)
+app.include_router(askchart_router)
 app.include_router(portal_router)  # Track B
 app.include_router(eligibility_router)  # Track B
 app.include_router(ledger_router)  # Track B
@@ -169,10 +175,11 @@ class SettingsBody(BaseModel):
 def update_settings(body: SettingsBody):
     if body.auto_capture is not None:
         settings["auto_capture"] = body.auto_capture
-        camera.auto = body.auto_capture
+        if camera:
+            camera.auto = body.auto_capture
     if body.auto_accept is not None:
         settings["auto_accept"] = body.auto_accept
-    if body.camera_index is not None and body.camera_index != camera.index:
+    if camera and body.camera_index is not None and body.camera_index != camera.index:
         camera.switch(body.camera_index)
     return status()
 

@@ -1,4 +1,4 @@
-# FlatRate Health (demo)
+# Iris (demo)
 
 An AI-first clinic platform for small clinics: intake card scanning, patients, scheduling, visits, e-prescribing,
 AI billing codes, a claim checker, a mock insurer, and an AI denial fighter. All patients, insurers and pharmacies are fictional.

@@ -6,6 +6,48 @@ planning, research and all the programming. The user handles the physical/CAD si
 
 ---
 
+## ⭐ PRODUCT NAME = **Iris** (decided Nov 21 afternoon; replaces the "FlatRate Health" placeholder everywhere)
+- Logo: `C:\Users\hamda\Downloads\Interconnected Medical Cross Icon.png` (white mark on black). Derived assets in
+  `scanner/web/static/`: `iris-mark-white.png` (nav bar), `iris-mark-dark.png` (portal, light backgrounds), `-1024` versions,
+  `iris-icon.png` + `favicon.png` (navy rounded square; `shell.js` injects the favicon on every page). `PRODUCT_NAME = "Iris"`
+  in `shell.js`; savings page, README, run.py and start.bat (`title Iris`, CRLF) renamed.
+- **Pitch deck (judges):** Slides artifact https://claude.ai/artifact/P5DDAiutEfjJCHZHRE7ztc. 16 slides:
+  - 8% problem → yearly cost by clinic size. These are the user's figures: small (3-5 providers) ≈ $100K/yr, medium (10-15) $180K-$420K, large $500K-$1.8M.
+  - Why it's unfair → the Iris solution.
+  - Pricing table: $499/provider/month billed yearly = $5,988/provider/yr; a 3-provider clinic keeps ≈ $82K/yr.
+  - Patient journey → 8 AI features → 4 screenshot slides → what's different → "AI suggests, people approve" → roadmap → close.
+
+  No team names (the user's choice). Source files are in the session scratchpad `deck/project/` and are lost between sessions,
+  so edit the artifact with the Artifact tool (`read` first). It stays private until the user shares it.
+- **Deck v2 (user feedback: TIME SAVED is the #1 message):** now 19 slides. Added "Clinics are drowning in paperwork"
+  (2 h of computer work per 1 h with patients, Sinsky et al., Annals of Internal Medicine 2016; healthcare slow to adopt AI),
+  "About 4.5 hours back per doctor per day" (estimate: coding 7 min×20, summaries 5 min×20, 1 appeal 30 min, 5 cards×2.5 min)
+  and a dedicated scanner slide. The cover reads "The clinic platform built to save time".
+- **Pitch script:** `Iris Pitch Script.pdf` in the project root (9 pages). A: slide-by-slide SAY lines + WHY boxes (~4 min).
+  B: the user's questions answered (why Iris is cheaper: AI replaces billing staff, software scales, built for small clinics,
+  web app; why $499 per provider: HIPAA hosting/BAA, AI usage, Surescripts/clearinghouse fees, EPCS identity proofing,
+  certification, support all scale per prescriber; per-provider is predictable and the industry norm; ≈70-80% less than
+  athenaOne per provider). C: likely judge Q&A + a numbers cheat sheet with sources.
+- **New-user guide:** `Iris User Guide.pdf` in the project root (19 pages: real screenshots, every screen, quick reference,
+  troubleshooting, glossary). Built from an HTML file + Playwright screenshots in the scratchpad, printed with Edge.
+- **Camera safety fix (Nov 21):** `CAMERA_NAME=none|off|disabled` now means NO camera (`main.py` lifespan). Before, `pick_camera`
+  fell back to "any real camera", so a test server grabbed the user's C920 and auto-scanned a frame (the images were deleted).
+  Scan-page tests: load `/scan` with `wait_until="domcontentloaded"` (the MJPEG stream never finishes loading).
+- **UI redesign v2 (Nov 21, same layouts, modern skin):** all in a theme layer at the end of `web/static/app.css`.
+  - Inter + Space Grotesk via `@import` (system fonts offline); new tokens: brand #2F6FD0, navy #0E1F38, radius 14, shadows.
+  - Sticky gradient nav with an animated underline; the logo turns on hover; the urgent Inbox badge pulses.
+  - Cards lift on hover; gradient primary buttons with press feedback; focus rings; pop-in modals with a blurred backdrop;
+    a slide-up toast; brand-colored links; content rises in (staggered) when the loader lifts (`html.iris-reveal`).
+  - **2-second loading screen:** pages carry `<html class="iris-boot">` (all except crm.html). app.css draws the spinning
+    logo with `body::before/::after` from the first paint. `shell.js` lifts it 2 s after the click: the click handler stores
+    `sessionStorage.iris-nav` and shows `html.iris-leave`. Otherwise it lifts 2 s after `performance.timeOrigin`.
+    - Same-page/#hash links, `target=_blank`, /api, /static, /video and /r are skipped.
+    - It lifts by itself after 4 s if JS fails, and it's hidden in print.
+    - **Skipped when `navigator.webdriver`** (Playwright), so tests aren't slowed. To test the loader, add the init script
+      `Object.defineProperty(navigator,'webdriver',{get:()=>false})`.
+    - Measured: click → fade starts at 2.0 s, fully visible ≈ 2.4 s.
+- **Uncommitted at this point (the user said not to push A6 until told):** A6 Ask the chart, the Iris rebrand, the camera fix.
+
 ## ⭐ START HERE: current state + architecture map (updated Nov 21, 2026, about midday)
 
 **Where we are (after Merge 2, `main` = `910a6a5`, about 5 h before judging):** the Nov 20 platform (Phases 1-7) is done.
@@ -53,6 +95,7 @@ Events: Python `events.broadcast({...})` → `/api/events` → one SharedWorker 
 | `labs.py` (A3) | `lab_orders` table, mock lab, review | `/labs/catalog`, `/encounters/{id}/labs`, `/labs/{id}/result-now`, `/labs/{id}/review`, `/patients/{id}/results` |
 | `inbox.py` (A3) | Clinical Inbox list + refill approve/deny + AI reply drafts (reads Track B's `messages`) | `/inbox`, `/inbox/count`, `/inbox/refills/{id}/approve` and `/deny`, `/inbox/messages/{id}/draft` |
 | `caregaps.py` (A4) | 7 quality measures computed from the chart | `/patients/{id}/care-gaps`, `/care-gaps` |
+| `askchart.py` (A6) | "Ask the chart": `sources_for(pid)` flattens the chart into cited sources (P profile, V<enc> visits incl. vitals/notes, RX<id>, L<order>, G care gaps, CL<claim>, BAL balance, INS coverage, A appointments, M portal messages); AI answers only from them with inline [ID] citations (invalid ids stripped); treatment questions → "the decision is the clinician's" + relevant facts | `/patients/{id}/ask` {question, history}, `/patients/{id}/ask/sources` |
 | `summary.py` (A5) | AI after-visit summary: `encounters.summary` (sent text the portal shows), `summary_draft`, `summary_language`, `summary_status` (none/drafting/draft/failed/sent), `summary_sent_at`, `summary_ai`. Drafted in the background on signing (`draft_on_sign`, hooked in `clinic_api.save_encounter`) | `/encounters/{id}/summary` (GET), `/…/summary/draft` {language}, `/…/summary/send` {text} (signed visits only; also posts a portal message) |
 | `codes.py`, `coder.py`, `billing.py`, `billing_api.py` | code lists, AI coding (sees the note + Rx + ordered labs), `claims` table + claim checker, billing API | `/claims…`, `/codes` |
 | `payer.py`, `appeals.py` | mock insurer (remittance, CARC denials), AI denial fighter | via `/claims/{id}/submit`, `/denial/analyze`, `/appeal/submit` |
@@ -80,6 +123,7 @@ hook in `seed.py` if it has demo data.
   - `ambient.js`.
   - `labs.js`: `labTable`, `labStatus`, `setupLabs`.
   - `caregaps.js`: `gapRows`, `setupCareGaps`.
+  - `askchart.js`: `setupAskChart` (floating "✨ Ask the chart" button + drawer on the chart and visit pages; one per page).
   - `avs.js`: `setupAvs` (summary draft/edit/language/send/print). **Card scripts must look up their own elements with
     `box.querySelector`, not `$()`**: the visit page re-renders and a stale card would hit null (the Merge 2 bug).
   - Track B: `eligibility.js`, `payments.js` (balance card, payments), `reminders.js` (schedule page).
@@ -193,7 +237,13 @@ GitHub username and judging time haven't been given yet).
   `$()` lookups in a card that can go stale after re-render) → fixed in the merge commit. Tested on the merged code: original
   demo rehearsal 100%, 12 pages open at once, labs 18+11, gaps 14, EPCS 17, AVS 15, Track B endpoints OK. Merged-app tests
   ran from a temporary `git worktree` with a launcher that loads the real `.env` key (never printed) with email off.
-- ⏭ Next: optional A6 "Ask the chart"; merge 3; code freeze; demo prep.
+- ✅ **A6 Ask the chart** (built + tested; **NOT pushed: the user said to wait for their OK before pushing to `track-a`**):
+  `app/askchart.py`, `web/static/askchart.js`, styles in `app.css`, hooked into `patient.html` + `visit.html`.
+  About 1 s per answer (`SCRIBE_MODELS`, lite first). Verified: Robert pre-visit summary (BP 168/104, BMI, smoker, 3 gaps),
+  James last A1c 7.8 [lab] + follow-up "is that at goal?", Linda "favorite food" → "That isn't in the chart", Aisha denial
+  CO-197 [claim], Michael coverage terminated [INS], Maria "double her lisinopril?" → clinician's decision + dose, last BP,
+  normal CMP. UI 10/10 + regressions (gaps 14, labs UI 11, all pages 15).
+- ⏭ Next: push A6 when the user OKs it; merge 3; code freeze; demo prep.
 
 ### Research summary: athenaOne vs. us (Nov 21)
 athenaOne = athenaClinicals (EHR) + athenaCollector (practice management/billing) + athenaCommunicator (patients).

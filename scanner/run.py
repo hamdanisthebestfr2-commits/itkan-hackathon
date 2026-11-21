@@ -33,7 +33,7 @@ if __name__ == "__main__":
     if port_in_use():
         if our_app_running():
             # Double-clicking start.bat twice used to crash with "only one usage of each socket address".
-            print("FlatRate Health is ALREADY RUNNING (another start.bat window is open).")
+            print("Iris is ALREADY RUNNING (another start.bat window is open).")
             print("Opening it in your browser. To restart it, close the other black window first.")
             open_pages()
         else:

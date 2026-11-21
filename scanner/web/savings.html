@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="iris-boot">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,7 +9,7 @@
   .viz-root {
     --surface-1: #ffffff; --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #898781;
     --grid: #e1e0d9; --axis: #c3c2b7;
-    --series-flat: #2a78d6;      /* categorical slot 1: FlatRate (flat price) */
+    --series-flat: #2a78d6;      /* categorical slot 1: Iris (flat price) */
     --series-pct: #eb6834;       /* categorical slot 2: percentage-of-collections pricing */
   }
   .grid2 { display: grid; grid-template-columns: 340px 1fr; gap: 16px; align-items: start; }
@@ -66,7 +66,7 @@
       <div class="ctl"><label>Percentage-of-collections fee <b id="pctV"></b></label>
         <input type="range" id="pct" min="3" max="10" step="0.5" value="6">
         <div class="hint">athenaOne's published estimates: about 4-8% of collections, sometimes more for small practices.</div></div>
-      <div class="ctl"><label>FlatRate price per provider / month</label>
+      <div class="ctl"><label>Iris price per provider / month</label>
         <input type="number" id="flat" min="0" step="10" value="499">
         <div class="hint">Placeholder price for the demo. The team sets the real one.</div></div>
     </div>
@@ -79,7 +79,7 @@
       </div>
       <div class="tiles">
         <div class="panel tile"><div class="lbl"><span class="key" style="background:var(--series-pct)"></span>Percentage model / year</div><div class="val" id="tPct"></div><div class="sub" id="tPctS"></div></div>
-        <div class="panel tile"><div class="lbl"><span class="key" style="background:var(--series-flat)"></span>FlatRate / year</div><div class="val" id="tFlat"></div><div class="sub" id="tFlatS"></div></div>
+        <div class="panel tile"><div class="lbl"><span class="key" style="background:var(--series-flat)"></span>Iris / year</div><div class="val" id="tFlat"></div><div class="sub" id="tFlatS"></div></div>
         <div class="panel tile"><div class="lbl">Savings over 5 years</div><div class="val" id="t5"></div><div class="sub">at today's collections</div></div>
         <div class="panel tile"><div class="lbl">Per provider / year</div><div class="val" id="tPer"></div><div class="sub">kept by the clinic</div></div>
       </div>
@@ -88,7 +88,7 @@
         <h3>The more a clinic earns, the more a percentage fee takes. A flat price doesn't move.</h3>
         <div class="sub" id="chartSub"></div>
         <div class="legend"><span><span class="key" style="background:var(--series-pct)"></span>Percentage of collections</span>
-          <span><span class="key" style="background:var(--series-flat)"></span>FlatRate flat price</span></div>
+          <span><span class="key" style="background:var(--series-flat)"></span>Iris flat price</span></div>
         <svg id="chart" viewBox="0 0 860 320" width="100%" role="img" aria-label="Annual cost by monthly collections per provider"></svg>
         <div class="tip" id="tip"></div>
       </div>
@@ -101,7 +101,7 @@
       <div class="note">athenahealth doesn't publish prices. Third-party reviews estimate athenaOne at about
         <b>4-8% of monthly collections</b> (sometimes over 10%), with small practices quoted at the high end. That's roughly
         <b>$65K-$185K/yr for 3 providers</b> and <b>$150K-$450K/yr for 5-10 providers</b>.<br><br>
-        To be fair: the percentage includes billing <i>services</i> (people who work claims and denials). FlatRate replaces
+        To be fair: the percentage includes billing <i>services</i> (people who work claims and denials). Iris replaces
         most of that work with AI that staff review, which is why it can charge a flat price. Estimates for illustration only.</div>
     </div>
     <div class="panel" style="overflow:auto">
@@ -111,7 +111,7 @@
 
   <div class="panel" style="margin-top:16px;overflow:auto">
     <table class="data what">
-      <thead><tr><th>Work the percentage fee pays for</th><th>How FlatRate handles it</th><th>Where to see it</th></tr></thead>
+      <thead><tr><th>Work the percentage fee pays for</th><th>How Iris handles it</th><th>Where to see it</th></tr></thead>
       <tbody>
         <tr><td>Typing intake forms into the system</td><td>Webcam reads handwritten cards; two AI reads cross-check each other</td><td><a href="/scan">Scan Intake</a></td></tr>
         <tr><td>Medical coding (picking ICD-10 / CPT codes)</td><td>AI suggests codes with quotes from the note; staff approve</td><td><a href="/billing">Billing</a></td></tr>
@@ -146,7 +146,7 @@ function update() {
   $("tFlat").textContent = money(F); $("tFlatS").textContent = `${money(s.flat)} × ${s.prov} × 12 months`;
   $("t5").textContent = money(save * 5); $("tPer").textContent = money(save / s.prov);
   $("chartSub").textContent = `Annual cost for ${s.prov} provider${s.prov > 1 ? "s" : ""}, by monthly collections per provider. Dots = your clinic today.`;
-  $("sizes").innerHTML = `<thead><tr><th>Clinic size</th><th class="num">Percentage model</th><th class="num">FlatRate</th><th class="num">Saved / year</th></tr></thead><tbody>` +
+  $("sizes").innerHTML = `<thead><tr><th>Clinic size</th><th class="num">Percentage model</th><th class="num">Iris</th><th class="num">Saved / year</th></tr></thead><tbody>` +
     [1, 3, 5, 10].map((n) => { const p = pctCost(n, s.coll, s.pct), f = flatCost(n, s.flat);
       return `<tr ${n === s.prov ? 'style="background:#eef5ff;font-weight:600"' : ""}><td>${n} provider${n > 1 ? "s" : ""}</td><td class="num">${money(p)}</td><td class="num">${money(f)}</td><td class="num">${money(p - f)}</td></tr>`; }).join("") + "</tbody>";
   drawChart(s);
@@ -183,7 +183,7 @@ function drawChart(s) {
   g += `<rect x="${W - M.r + 8}" y="${yp - 1.5}" width="12" height="3" rx="1.5" fill="${pctC}"/><text x="${W - M.r + 26}" y="${yp + 4}" fill="${ink}" font-weight="600">${compact(pctCost(s.prov, X1, s.pct))}</text>
         <text x="${W - M.r + 26}" y="${yp + 19}" fill="${ink2}">${s.pct}% of collections</text>`;
   g += `<rect x="${W - M.r + 8}" y="${yf - 1.5}" width="12" height="3" rx="1.5" fill="${flatC}"/><text x="${W - M.r + 26}" y="${yf + 4}" fill="${ink}" font-weight="600">${compact(flatCost(s.prov, s.flat))}</text>
-        <text x="${W - M.r + 26}" y="${yf + 19}" fill="${ink2}">FlatRate (flat)</text>`;
+        <text x="${W - M.r + 26}" y="${yf + 19}" fill="${ink2}">Iris (flat)</text>`;
   // "your clinic" markers with a 2px surface ring
   const cx = x(s.coll);
   g += `<line x1="${cx}" x2="${cx}" y1="${M.t}" y2="${H - M.b}" stroke="${axis}" stroke-width="1"/>`;
@@ -203,7 +203,7 @@ function drawChart(s) {
     $("xh").setAttribute("x1", x(v)); $("xh").setAttribute("x2", x(v)); $("xh").setAttribute("visibility", "visible");
     tip.innerHTML = `<b>${money(v)}/month per provider</b>
       <div class="r"><span><span class="key" style="background:${pctC}"></span>${s.pct}% model</span><b>${money(P)}</b></div>
-      <div class="r"><span><span class="key" style="background:${flatC}"></span>FlatRate</span><b>${money(F)}</b></div>
+      <div class="r"><span><span class="key" style="background:${flatC}"></span>Iris</span><b>${money(F)}</b></div>
       <div class="r" style="border-top:1px solid #eee;margin-top:4px;padding-top:4px"><span>Saved</span><b>${money(P - F)}</b></div>`;
     const br = box.getBoundingClientRect();
     tip.style.display = "block";

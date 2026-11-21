@@ -1,6 +1,51 @@
 // Shared page shell: top navigation + small helpers used by every page.
 // Rename the product here (one place).
-const PRODUCT_NAME = "FlatRate Health";
+const PRODUCT_NAME = "Iris";
+
+// Browser-tab icon on every page that loads the shell (staff pages and the patient portal).
+(() => {
+  if (document.querySelector('link[rel="icon"]')) return;
+  const l = document.createElement("link");
+  l.rel = "icon"; l.type = "image/png"; l.href = "/static/favicon.png";
+  document.head.appendChild(l);
+})();
+
+// Iris loading screen: the spinning logo shows for exactly IRIS_LOADER_MS on every page change, counted from
+// the click (or from the start of the page load for navigations done in code). The screen itself is drawn by
+// app.css (html.iris-boot / html.iris-leave), so it is up from the first paint. Automated test browsers skip it.
+const IRIS_LOADER_MS = 2000;
+(() => {
+  const html = document.documentElement;
+  if (navigator.webdriver) { html.classList.remove("iris-boot"); return; }
+  if (html.classList.contains("iris-boot")) {
+    let started = performance.timeOrigin || Date.now();
+    try {
+      const clicked = Number(sessionStorage.getItem("iris-nav"));
+      sessionStorage.removeItem("iris-nav");
+      if (clicked > 0 && Date.now() - clicked < IRIS_LOADER_MS + 3000) started = clicked;
+    } catch (e) { /* storage blocked: count from the page load */ }
+    setTimeout(() => {
+      html.classList.add("iris-out", "iris-reveal");
+      setTimeout(() => html.classList.remove("iris-boot", "iris-out"), 360);
+      setTimeout(() => html.classList.remove("iris-reveal"), 1400);
+    }, Math.max(0, IRIS_LOADER_MS - (Date.now() - started)));
+  }
+  // Leaving: put the screen up right away, then go. The next page keeps it up until 2 s after this click.
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest && e.target.closest("a[href]");
+    if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    if ((a.target && a.target !== "_self") || a.hasAttribute("download")) return;
+    const url = new URL(a.href, location.href);
+    if (url.origin !== location.origin || /^\/(api|static|video|r)\b/.test(url.pathname)) return;
+    if (url.pathname === location.pathname && url.search === location.search) return;   // same page / #section
+    e.preventDefault();
+    try { sessionStorage.setItem("iris-nav", String(Date.now())); } catch (err) { /* fine */ }
+    html.classList.add("iris-leave");
+    setTimeout(() => { location.href = url.href; }, 200);
+  });
+  // Back/forward restores a page from cache: never leave the leaving screen on it.
+  window.addEventListener("pageshow", () => html.classList.remove("iris-leave"));
+})();
 
 const NAV = [
   { href: "/", label: "Dashboard" },
@@ -19,7 +64,7 @@ function renderNav(active) {
   if (!nav) return;
   nav.className = "nav";
   nav.innerHTML = `
-    <a class="brand" href="/"><span class="mark">✚</span>${esc(PRODUCT_NAME)}</a>
+    <a class="brand" href="/"><img class="mark" src="/static/iris-mark-white.png" alt="">${esc(PRODUCT_NAME)}</a>
     <div class="links">${NAV.map((n) => n.soon
       ? `<span class="link soon" title="Coming in a later phase">${n.label}</span>`
       : `<a class="link ${n.href === active ? "active" : ""}" href="${n.href}">${n.label}</a>`).join("")}
