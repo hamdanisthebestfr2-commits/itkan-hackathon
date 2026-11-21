@@ -427,6 +427,10 @@ user's OK before starting the next phase. Before big new scope, present the plan
 - `scanner/README.md` rewritten for the whole platform.
 
 ### ⚠ AI quota (read this before testing anything)
+- **UPDATE Nov 21 (midday): billing is ON, PREPAID.** The user added prepaid credits in AI Studio (https://ai.studio/projects),
+  so the free-tier 20/day limit no longer applies. If credits run out, EVERY model fails with **402 "prepayment credits are
+  depleted"** (ai.py treats it as quota → all fallbacks fail → `AIUnavailable`): the user must add credits there.
+  Still avoid wasteful AI calls in tests (they cost real money, though only fractions of a cent each).
 - The Gemini key is on the **FREE tier: about 20 requests per model per day** (`GenerateRequestsPerDayPerProjectPerModel-FreeTier`,
   resets at midnight Pacific). Development and testing on Nov 20 used up `gemini-3.5-flash` (alias of 3.6-flash).
 - `app/ai.py` = the single entry point for all Gemini calls (`ai.generate(models, contents, schema, system, thinking)`).
