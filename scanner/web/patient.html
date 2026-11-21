@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Patient chart</title>
+<link rel="stylesheet" href="/static/app.css">
+<style>
+  .chart-head { display: flex; gap: 16px; align-items: center; padding: 18px 20px; flex-wrap: wrap; }
+  .avatar { width: 56px; height: 56px; border-radius: 12px; background: #5b6ee1; color: #fff; display: grid; place-items: center; font-size: 22px; font-weight: 700; }
+  .chart-head h1 { margin: 0; font-size: 24px; }
+  .chart-head .meta { color: var(--muted); font-size: 14px; margin-top: 2px; }
+  .chart-head .actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+  .allergy-bar { background: var(--missing-bg); color: var(--missing); padding: 8px 20px; font-weight: 600; font-size: 14px; border-top: 1px solid #f5c6c1; }
+  .allergy-bar.none { background: #f6f8fa; color: var(--muted); font-weight: 400; border-top: 1px solid var(--border); }
+  .cols { display: grid; grid-template-columns: 330px 1fr; gap: 16px; margin-top: 16px; align-items: start; }
+  .card { padding: 14px 16px; margin-bottom: 16px; }
+  .card h3 { margin: 0 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+  .kv { display: grid; grid-template-columns: 110px 1fr; gap: 6px 10px; font-size: 14px; }
+  .kv .k { color: var(--muted); }
+  .vitals { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
+  .vital { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+  .vital .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+  .vital .val { font-size: 20px; font-weight: 700; }
+  .vital .unit { font-size: 12px; color: var(--muted); font-weight: 400; }
+  .vital.warn { border-color: #f0c36d; background: #fffaf0; } .vital.bad { border-color: #f0a39b; background: #fff6f5; }
+  .visit { border-top: 1px solid var(--border); padding: 12px 0; display: flex; gap: 14px; }
+  .visit:first-of-type { border-top: 0; }
+  .visit .when { width: 110px; flex-shrink: 0; font-size: 13px; }
+  .visit .note { white-space: pre-wrap; font-size: 14px; margin-top: 4px; }
+  .visit img { width: 90px; border: 1px solid var(--border); border-radius: 6px; cursor: zoom-in; }
+  .lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.8); display: grid; place-items: center; z-index: 70; }
+  .lightbox img { max-width: 92vw; max-height: 92vh; }
+  @media (max-width: 900px) { .cols { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<nav id="nav"></nav>
+<div class="page">
+  <div style="margin-bottom:10px"><a href="/patients" class="small">← All patients</a></div>
+  <div id="chart"><div class="empty">Loading…</div></div>
+</div>
+
+<script src="/static/shell.js"></script>
+<script src="/static/patient-form.js"></script>
+<script src="/static/rx-form.js"></script>
+<script>
+renderNav("/patients");
+const patientId = Number(new URLSearchParams(location.search).get("id"));
+let patient = null;
+
+const VITALS = [
+  ["BP", (v) => v.bp_systolic ? `${v.bp_systolic}/${v.bp_diastolic ?? "?"}` : null, "mmHg",
+    (v) => (+v.bp_systolic >= 180 || +v.bp_diastolic >= 120) ? "bad" : (+v.bp_systolic >= 140 || +v.bp_diastolic >= 90) ? "warn" : ""],
+  ["Heart rate", (v) => v.heart_rate, "bpm", (v) => (+v.heart_rate > 120 || +v.heart_rate < 50) ? "warn" : ""],
+  ["SpO2", (v) => v.spo2, "%", (v) => +v.spo2 < 90 ? "bad" : +v.spo2 < 94 ? "warn" : ""],
+  ["Temp", (v) => v.temperature, (v) => "°" + (v.temperature_unit || "F"), (v) => (v.temperature_unit || "F") === "F" && +v.temperature >= 100.4 ? "warn" : ""],
+  ["Resp. rate", (v) => v.respiratory_rate, "/min", () => ""],
+  ["Glucose", (v) => v.blood_glucose, "mg/dL", (v) => +v.blood_glucose >= 200 ? "warn" : ""],
+  ["Weight", (v) => v.weight_lbs, "lbs", () => ""],
+  ["Height", (v) => v.height_ft ? `${v.height_ft}'${v.height_in || 0}"` : null, "", () => ""],
+  ["BMI", (v) => bmi(v) ?? v.bmi, "", (v) => (bmi(v) ?? +v.bmi) >= 30 ? "warn" : ""],
+];
+function bmi(v) {
+  const inches = (+v.height_ft || 0) * 12 + (+v.height_in || 0);
+  return inches && v.weight_lbs ? Math.round(703 * v.weight_lbs / inches / inches * 10) / 10 : null;
+}
+
+async function load() {
+  try {
+    patient = await api(`/api/patients/${patientId}`);
+  } catch (e) {
+    $("chart").innerHTML = `<div class="empty">${esc(e.message)}</div>`;
+    return;
+  }
+  render();
+}
+
+function render() {
+  const p = patient;
+  document.title = `${p.first_name} ${p.last_name}`;
+  const withVitals = p.encounters.filter((e) => Object.keys(e.vitals).length);
+  const latest = withVitals[0];
+  const allergies = (p.allergies || "").split(";").map((a) => a.trim()).filter(Boolean);
+
+  $("chart").innerHTML = `
+  <div class="panel">
+    <div class="chart-head">
+      <div class="avatar">${esc((p.first_name[0] || "") + (p.last_name[0] || ""))}</div>
+      <div>
+        <h1>${esc(p.first_name)} ${esc(p.last_name)}
+          ${p.source === "card scan" ? '<span class="badge scan" style="vertical-align:middle">Registered by card scan</span>' : ""}</h1>
+        <div class="meta">${esc(p.mrn)} · ${p.dob ? `${age(p.dob)} yrs (DOB ${fmtDate(p.dob)})` : "DOB not on file"}${p.sex ? " · " + (SEX[p.sex] || p.sex) : ""}
+          ${p.phone ? " · " + esc(p.phone) : ""}</div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="editBtn">Edit</button>
+        <a class="btn" href="/schedule?patient_id=${p.id}">Book appointment</a>
+        <button class="btn" id="visitBtn">Start visit</button>
+        <button class="btn primary" id="rxBtn">Prescribe</button>
+      </div>
+    </div>
+    <div class="allergy-bar ${allergies.length ? "" : "none"}">
+      ${allergies.length ? "⚠ Allergies: " + allergies.map(esc).join(", ") : "No known drug allergies (NKDA)"}
+    </div>
+  </div>
+
+  <div class="cols">
+    <div>
+      <div class="panel card">
+        <h3>Insurance</h3>
+        ${p.payer_name ? `<div class="kv">
+          <span class="k">Plan</span><span>${esc(p.payer_name)}</span>
+          <span class="k">Member ID</span><span>${esc(p.member_id) || '<span class="badge amber">Missing</span>'}</span>
+          <span class="k">Group #</span><span>${esc(p.group_number) || "-"}</span></div>`
+        : `<span class="badge amber">No insurance on file</span><p class="muted small">Needed before a claim can be billed. Click Edit to add it.</p>`}
+      </div>
+      <div class="panel card">
+        <h3>Contact &amp; pharmacy</h3>
+        <div class="kv">
+          <span class="k">Email</span><span>${esc(p.email) || "-"}</span>
+          <span class="k">Address</span><span>${[p.address, p.city, p.state, p.zip].filter(Boolean).map(esc).join(", ") || "-"}</span>
+          <span class="k">Pharmacy</span><span>${esc(p.pharmacy_name) || '<span class="muted">Not set</span>'}</span>
+        </div>
+      </div>
+      <div class="panel card">
+        <h3>Problems &amp; medications</h3>
+        <div class="kv">
+          <span class="k">Conditions</span><span>${esc(p.conditions) || "-"}</span>
+          <span class="k">Medications</span><span>${esc(p.medications) || "-"}</span>
+        </div>
+      </div>
+      <div class="panel card">
+        <h3>Appointments</h3>
+        ${p.appointments.length ? p.appointments.slice(0, 6).map((a) => `
+          <div style="padding:6px 0;border-top:1px solid #eef0f3;font-size:14px">
+            <a href="/schedule?date=${a.start.slice(0, 10)}&appt=${a.id}"><b>${fmtDateTime(a.start)}</b></a> <span class="badge ${a.status === "completed" ? "green" : a.status === "cancelled" ? "red" : "blue"}">${a.status.replace("_", " ")}</span><br>
+            <span class="muted small">${esc(a.provider_name)} · ${esc(a.reason)}</span></div>`).join("")
+          : '<span class="muted small">No appointments.</span>'}
+      </div>
+    </div>
+
+    <div>
+      <div class="panel card">
+        <h3>Latest vitals ${latest ? `<span class="muted" style="text-transform:none;letter-spacing:0;font-weight:400">${fmtDate(latest.date)} · ${esc(latest.type)}</span>` : ""}</h3>
+        ${latest ? `<div class="vitals">${VITALS.map(([label, get, unit, flag]) => {
+          const val = get(latest.vitals);
+          if (val === null || val === undefined || val === "") return "";
+          return `<div class="vital ${flag(latest.vitals)}"><div class="lbl">${label}</div>
+            <div class="val">${esc(val)} <span class="unit">${typeof unit === "function" ? unit(latest.vitals) : unit}</span></div></div>`;
+        }).join("")}</div>` : '<span class="muted small">No vitals recorded yet. Scan an intake card or start a visit.</span>'}
+        ${withVitals.length > 1 ? `<table class="data" style="margin-top:14px"><thead><tr><th>Date</th><th>BP</th><th>HR</th><th>SpO2</th><th>Glucose</th><th>Weight</th></tr></thead><tbody>
+          ${withVitals.map((e) => `<tr><td>${fmtDate(e.date)}</td><td>${e.vitals.bp_systolic ? `${e.vitals.bp_systolic}/${e.vitals.bp_diastolic}` : "-"}</td>
+            <td>${e.vitals.heart_rate || "-"}</td><td>${e.vitals.spo2 ? e.vitals.spo2 + "%" : "-"}</td><td>${e.vitals.blood_glucose || "-"}</td><td>${e.vitals.weight_lbs || "-"}</td></tr>`).join("")}
+          </tbody></table>` : ""}
+      </div>
+
+      <div class="panel card">
+        <h3>Visits (${p.encounters.length})</h3>
+        ${p.encounters.map((e) => `
+          <div class="visit">
+            <div class="when"><b>${fmtDate(e.date)}</b><br><span class="badge ${e.type === "screening" ? "scan" : "blue"}">${esc(e.type)}</span>
+              <div class="muted small" style="margin-top:4px">${esc(e.provider_name || "Health fair staff")}</div></div>
+            <div style="flex:1;min-width:0"><div class="note">${esc(e.note) || '<span class="muted">No note yet.</span>'}</div>
+              ${e.type !== "screening" ? `<a class="small" href="/visit?id=${e.id}">${e.status === "signed" ? "View visit" : "Continue visit"} →</a>` : ""}</div>
+            ${e.source_image ? `<img src="${esc(e.source_image)}" alt="Scanned card" title="Scanned intake card" onclick="zoom(this.src)">` : ""}
+          </div>`).join("") || '<span class="muted small">No visits yet.</span>'}
+      </div>
+
+      <div class="panel card">
+        <h3>Prescriptions (${p.prescriptions.length})</h3>
+        ${p.prescriptions.length ? `<table class="data"><thead><tr><th>Medication</th><th>Instructions</th><th>Pharmacy</th><th>Sent</th><th>Status</th></tr></thead><tbody>
+          ${p.prescriptions.map((r) => `<tr><td><b>${esc(r.drug)}</b><br><span class="muted small">${esc(r.strength)} · qty ${r.quantity} · ${r.refills} refills</span></td>
+            <td class="small">${esc(r.sig)}</td><td class="small">${esc(r.pharmacy_name)}</td><td class="small">${fmtDate(r.sent_at)}</td>
+            <td>${rxStatusBadge(r)}</td></tr>`).join("")}
+          </tbody></table>` : '<span class="muted small">No prescriptions.</span>'}
+      </div>
+    </div>
+  </div>`;
+  $("editBtn").onclick = () => openPatientForm(patient, load);
+  $("visitBtn").onclick = openWalkIn;
+  $("rxBtn").onclick = () => {
+    openModal(`<div class="modal-head"><h2>Prescribe for ${esc(p.first_name)} ${esc(p.last_name)}</h2><button class="x" onclick="closeModal()">×</button></div>
+      <div class="modal-body"><div id="chartRx"></div></div>`, { wide: true });
+    renderRxForm($("chartRx"), { patient: p, onSent: () => { closeModal(); load(); } });
+  };
+}
+
+async function openWalkIn() {
+  const ref = await reference();
+  const open = patient.encounters.find((e) => e.type !== "screening" && e.status !== "signed");
+  const m = openModal(`<div class="modal-head"><h2>Start a visit</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      ${open ? `<p>There is already an unsigned visit from ${fmtDate(open.date)}. <a href="/visit?id=${open.id}">Continue that visit →</a></p><p class="muted small">Or start a new walk-in visit:</p>` : ""}
+      <div class="form-grid"><div class="f s6"><label>Provider</label><select id="wiProv">${ref.providers.map((x) =>
+        `<option value="${x.id}">${esc(x.name)}, ${esc(x.credentials)}</option>`).join("")}</select></div></div></div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="wiGo">Start walk-in visit</button></div>`);
+  m.querySelector("#wiGo").onclick = async () => {
+    const res = await api("/api/encounters", { method: "POST", body: { patient_id: patient.id, provider_id: Number($("wiProv").value) } });
+    location.href = "/visit?id=" + res.encounter_id;
+  };
+}
+
+function zoom(src) {
+  const lb = document.createElement("div");
+  lb.className = "lightbox"; lb.innerHTML = `<img src="${src}">`; lb.onclick = () => lb.remove();
+  document.body.appendChild(lb);
+}
+
+onEvent((ev) => {
+  if (ev.type === "crm_saved" && ev.patient_id === patientId) { toast("New screening added from card scan"); load(); }
+  if ((ev.type === "rx_updated" || ev.type === "rx_sent") && ev.rx.patient_id === patientId) load();
+  if (ev.type === "clinic_reset") location.href = "/patients";
+});
+load();
+</script>
+</body>
+</html>

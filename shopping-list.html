@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hackathon Shopping List</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --text: #1b1f24;
+    --muted: #5d6673;
+    --border: #e1e4e8;
+    --accent: #0b6bcb;
+    --warn-bg: #fff4e5;
+    --warn-text: #8a4b00;
+    --done: #9aa3ad;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #111418;
+      --card: #1a1f25;
+      --text: #e6e9ed;
+      --muted: #9aa3ad;
+      --border: #2c333b;
+      --accent: #5aa8f0;
+      --warn-bg: #2e2312;
+      --warn-text: #f0b866;
+      --done: #5d6673;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .note {
+    background: var(--warn-bg); color: var(--warn-text);
+    border-radius: 8px; padding: 10px 14px; margin-bottom: 24px; font-size: .95rem;
+  }
+  h2 { font-size: 1.1rem; margin: 28px 0 10px; }
+  ul { list-style: none; padding: 0; margin: 0; }
+  li {
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 14px; margin-bottom: 8px;
+  }
+  label { display: flex; gap: 12px; align-items: flex-start; cursor: pointer; }
+  input[type="checkbox"] { width: 18px; height: 18px; margin-top: 3px; accent-color: var(--accent); flex-shrink: 0; }
+  .row { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; width: 100%; }
+  .name { font-weight: 600; }
+  .price { color: var(--accent); font-weight: 600; white-space: nowrap; }
+  .why { color: var(--muted); font-size: .92rem; margin-top: 2px; }
+  li.checked .name, li.checked .why, li.checked .price { color: var(--done); text-decoration: line-through; }
+  .total {
+    display: flex; justify-content: space-between; margin-top: 24px; padding: 14px;
+    border-top: 2px solid var(--border); font-weight: 600;
+  }
+  .where { color: var(--muted); font-size: .92rem; margin-top: 24px; }
+  @media print {
+    .note { border: 1px solid #ccc; }
+    li { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Hackathon Shopping List</h1>
+  <p class="sub">AI intake card scanner: things to buy before the ITKAN AI Hackathon, Sat Nov 21, 2026</p>
+
+  <div class="note">Buy in person or with next-day shipping. The event is only a few days away. Click items to check them off.</div>
+
+  <h2>Must buy</h2>
+  <ul>
+    <li><label><input type="checkbox" data-id="webcam"><div class="row"><div><div class="name">Webcam: Logitech C920, C922, or Brio 100</div><div class="why">1080p with <b>autofocus</b>, needed to read handwriting up close. Do <b>not</b> buy the Logitech C270 (fixed focus).</div></div><span class="price">$40–70</span></div></label></li>
+    <li><label><input type="checkbox" data-id="cardstock"><div class="row"><div><div class="name">Matte white cardstock (65–110 lb)</div><div class="why">For printing fake demo cards. Matte, not glossy, to avoid glare.</div></div><span class="price">$5–10</span></div></label></li>
+    <li><label><input type="checkbox" data-id="pens"><div class="row"><div><div class="name">Black fine-tip felt pens (pack)</div><div class="why">Dark, consistent ink is easier to read than a faint ballpoint. Get a few so different people can fill in test cards.</div></div><span class="price">~$5</span></div></label></li>
+    <li><label><input type="checkbox" data-id="api"><div class="row"><div><div class="name">Anthropic API credit</div><div class="why">Powers the AI that reads the cards. Separate from a Claude Pro subscription. $15–20 covers 150+ cards of testing plus the demo. A parent or mentor may need to create the account.</div></div><span class="price">$15–20</span></div></label></li>
+  </ul>
+
+  <h2>For the 3D-printed holder</h2>
+  <ul>
+    <li><label><input type="checkbox" data-id="screw"><div class="row"><div><div class="name">1/4"-20 screw + nut</div><div class="why">Attaches the webcam (it has a standard tripod thread underneath) to the printed mount.</div></div><span class="price">~$2</span></div></label></li>
+    <li><label><input type="checkbox" data-id="filament"><div class="row"><div><div class="name">Matte black PLA filament (only if you're low)</div><div class="why">A dark background behind the card helps the software find its edges.</div></div><span class="price">$15–20</span></div></label></li>
+  </ul>
+
+  <h2>Optional / backup</h2>
+  <ul>
+    <li><label><input type="checkbox" data-id="light"><div class="row"><div><div class="name">USB LED light / small desk lamp (only if testing shows shadows)</div><div class="why">Room lighting is usually enough. Buy this only if the camera or holder casts a shadow on the card during testing.</div></div><span class="price">$15–25</span></div></label></li>
+    <li><label><input type="checkbox" data-id="tripod"><div class="row"><div><div class="name">Small tripod or gooseneck clamp</div><div class="why">Backup camera mount if the printed holder isn't ready in time.</div></div><span class="price">$10–15</span></div></label></li>
+  </ul>
+
+  <h2>Already have? Check before Saturday</h2>
+  <ul>
+    <li><label><input type="checkbox" data-id="laptop"><div class="row"><div><div class="name">Windows laptop + charger</div><div class="why">Install Python 3.12 (check "Add to PATH") and VS Code beforehand.</div></div><span class="price">—</span></div></label></li>
+    <li><label><input type="checkbox" data-id="hotspot"><div class="row"><div><div class="name">Phone with hotspot</div><div class="why">Backup internet if the venue Wi-Fi drops during the demo.</div></div><span class="price">—</span></div></label></li>
+    <li><label><input type="checkbox" data-id="hub"><div class="row"><div><div class="name">USB hub / USB-C adapter</div><div class="why">If the laptop doesn't have enough USB-A ports for the webcam and light.</div></div><span class="price">—</span></div></label></li>
+    <li><label><input type="checkbox" data-id="hdmi"><div class="row"><div><div class="name">HDMI cable / adapter</div><div class="why">In case you present on a projector or TV.</div></div><span class="price">—</span></div></label></li>
+    <li><label><input type="checkbox" data-id="power"><div class="row"><div><div class="name">Power strip / extension cord</div><div class="why">Outlets at hackathons fill up fast.</div></div><span class="price">—</span></div></label></li>
+    <li><label><input type="checkbox" data-id="cards"><div class="row"><div><div class="name">The real intake cards</div><div class="why">Bring blank ones. Use fake patient info only.</div></div><span class="price">—</span></div></label></li>
+  </ul>
+
+  <div class="total"><span>Estimated total (must buy + holder parts)</span><span>~$65–110</span></div>
+
+  <p class="where">Where to buy quickly: Micro Center (Richardson), Best Buy, or Amazon next-day. Screws are at any hardware store.</p>
+</main>
+<script>
+  const KEY = "itkan-shopping-checked";
+  let state = {};
+  try { state = JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) {}
+  document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    const li = cb.closest("li");
+    cb.checked = !!state[cb.dataset.id];
+    li.classList.toggle("checked", cb.checked);
+    cb.addEventListener("change", () => {
+      state[cb.dataset.id] = cb.checked;
+      li.classList.toggle("checked", cb.checked);
+      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+    });
+  });
+</script>
+</body>
+</html>

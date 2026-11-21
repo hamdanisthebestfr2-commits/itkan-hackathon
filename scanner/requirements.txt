@@ -1,0 +1,11 @@
+google-genai
+pydantic
+fastapi
+uvicorn[standard]
+python-multipart
+opencv-python
+numpy
+python-dotenv
+pillow
+httpx
+pygrabber

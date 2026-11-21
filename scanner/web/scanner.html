@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scan Intake</title>
+<link rel="stylesheet" href="/static/app.css">
+<style>
+  .layout { display: grid; grid-template-columns: minmax(340px, 44%) 1fr; gap: 16px; padding: 16px; height: calc(100% - 52px); }
+  .left, .right { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+  .video-wrap { position: relative; overflow: hidden; background: #111; }
+  .video-wrap img { display: block; width: 100%; }
+  .status {
+    position: absolute; left: 12px; top: 12px; padding: 6px 12px; border-radius: 999px;
+    background: rgba(0,0,0,.65); color: #fff; font-weight: 600; font-size: 14px;
+  }
+  .status.go { background: rgba(31,138,76,.9); }
+  .status.busy { background: rgba(11,92,173,.92); }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px; }
+  .controls label { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; }
+  .card-view { position: relative; flex: 1; min-height: 0; overflow: auto; padding: 8px; }
+  .card-view .wrap { position: relative; margin: 0 auto; }
+  .card-view img { width: 100%; display: block; border-radius: 6px; }
+  .card-view .hl { position: absolute; border: 3px solid var(--check); border-radius: 4px; pointer-events: none; }
+  .card-view .hl.missing { border-color: var(--missing); }
+  .card-view .hl.focus { border-color: var(--brand); box-shadow: 0 0 0 4px rgba(11,92,173,.25); }
+
+  .review { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .review-head { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .review-head h2 { margin: 0; font-size: 18px; flex: 1; }
+  .review-body { flex: 1; overflow: auto; padding: 8px 16px 16px; }
+  .review-foot { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; gap: 10px; align-items: center; }
+  .review-foot .hint { flex: 1; font-size: 13px; }
+  .empty-state { display: grid; place-items: center; height: 100%; text-align: center; color: var(--muted); padding: 40px; }
+  .empty-state .big { font-size: 46px; }
+  .section-title { margin: 16px 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); font-weight: 700; }
+  .fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+  .field { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; border-left-width: 5px; }
+  .field.ok { border-left-color: var(--ok); }
+  .field.empty { border-left-color: var(--border); }
+  .field.check { border-left-color: var(--check); background: #fffcf4; grid-column: span 2; }
+  .field.missing { border-left-color: var(--missing); background: #fff8f7; grid-column: span 2; }
+  .field label { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); font-weight: 600; }
+  .field input, .field select { width: 100%; border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; margin-top: 4px; }
+  .field input:focus, .field select:focus { outline: 2px solid var(--brand); border-color: var(--brand); }
+  .field .why { font-size: 13px; color: var(--check); margin-top: 6px; }
+  .field.missing .why { color: var(--missing); }
+  .field .row { display: flex; gap: 10px; align-items: flex-start; }
+  .field .row > div { flex: 1; min-width: 0; }
+  .field canvas { border: 1px solid var(--border); border-radius: 6px; background: #fff; max-width: 220px; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .chip { border: 1px solid var(--border); background: #fff; border-radius: 999px; padding: 2px 10px; font-size: 13px; cursor: pointer; }
+  .chip:hover { border-color: var(--brand); color: var(--brand); }
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--ok); color: #fff;
+    padding: 10px 18px; border-radius: 8px; font-weight: 600; opacity: 0; transition: opacity .3s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+  .toast.err { background: var(--missing); }
+  .spinner { width: 42px; height: 42px; border: 4px solid var(--border); border-top-color: var(--brand); border-radius: 50%; animation: spin 0.9s linear infinite; margin: 0 auto 12px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; height: auto; } }
+</style>
+</head>
+<body>
+<nav id="nav"></nav>
+
+<div class="layout">
+  <div class="left">
+    <div class="panel video-wrap">
+      <img id="video" src="/video" alt="Live camera">
+      <div id="status" class="status">Starting camera…</div>
+    </div>
+    <div class="panel controls">
+      <button class="btn primary" id="scanBtn" title="Space">Scan now</button>
+      <button class="btn" id="uploadBtn">Upload photo</button>
+      <input type="file" id="fileInput" accept="image/*" hidden>
+      <select id="cameraSel" class="btn" title="Camera"></select>
+      <label><input type="checkbox" id="autoCapture"> Auto-scan</label>
+      <label><input type="checkbox" id="autoAccept"> Auto-submit if all green</label>
+    </div>
+    <div class="panel card-view" id="cardView" hidden>
+      <div class="wrap"><img id="cardImg" alt="Captured card"></div>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="panel review">
+      <div class="review-head" id="reviewHead" hidden>
+        <h2>Review card</h2>
+        <span id="counts"></span>
+        <span class="muted" id="timing"></span>
+      </div>
+      <div class="review-body" id="reviewBody">
+        <div class="empty-state"><div><div class="big">🪪</div>
+          <p><b>Hold a card in front of the camera.</b><br>It scans automatically when the card is steady.<br>
+          Or press <b>Space</b> to scan now.</p></div></div>
+      </div>
+      <div class="review-foot" id="reviewFoot" hidden>
+        <span class="hint muted">Yellow = please verify · Red = missing · <b>Enter</b> submits</span>
+        <button class="btn" id="discardBtn">Discard</button>
+        <button class="btn primary" id="submitBtn">Save to patient record ⏎</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="/static/shell.js"></script>
+<script>
+renderNav("/scan");
+const STATUS_TEXT = {
+  starting: ["Starting camera…", ""], no_camera: ["No camera: pick another below", ""],
+  no_card: ["Show a card", ""], steadying: ["Hold steady…", ""], captured: ["Captured ✓", "go"],
+  waiting_removal: ["Done: remove card", "go"], busy: ["Reading card…", "busy"], manual: ["Auto-scan off: press Space", ""],
+};
+let current = null;  // {scan_id, fields, image}
+let cardImage = null;
+
+// ---------- sounds ----------
+let audio;
+function beep(freq = 880, ms = 120, when = 0) {
+  try {
+    audio = audio || new AudioContext();
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.frequency.value = freq; o.connect(g); g.connect(audio.destination);
+    g.gain.setValueAtTime(0.15, audio.currentTime + when);
+    o.start(audio.currentTime + when); o.stop(audio.currentTime + when + ms / 1000);
+  } catch (e) {}
+}
+
+fetch("/api/cameras").then((r) => r.json()).then((cams) => {
+  $("cameraSel").innerHTML = cams.map((c) => `<option value="${c.index}">${esc(c.name)}</option>`).join("");
+});
+
+// ---------- status polling ----------
+async function pollStatus() {
+  try {
+    const s = await (await fetch("/api/status")).json();
+    const [text, cls] = STATUS_TEXT[s.camera_state] || [s.camera_state, ""];
+    const st = $("status");
+    st.textContent = s.camera_state === "steadying" ? `Hold steady… ${Math.round(s.progress * 100)}%` : text;
+    st.className = "status " + cls;
+    $("autoCapture").checked = s.auto_capture;
+    $("autoAccept").checked = s.auto_accept;
+    if (document.activeElement !== $("cameraSel")) $("cameraSel").value = s.camera_index;
+  } catch (e) {}
+  setTimeout(pollStatus, 300);
+}
+pollStatus();
+
+async function setting(body) {
+  await fetch("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+}
+$("autoCapture").onchange = (e) => setting({ auto_capture: e.target.checked });
+$("autoAccept").onchange = (e) => setting({ auto_accept: e.target.checked });
+$("cameraSel").onchange = (e) => { setting({ camera_index: +e.target.value }); setTimeout(() => $("video").src = "/video?" + Date.now(), 1500); };
+
+// ---------- scanning ----------
+async function scanNow() {
+  const r = await fetch("/api/scan", { method: "POST" });
+  if (!r.ok) toast("Camera not ready", "error");
+}
+$("scanBtn").onclick = scanNow;
+$("uploadBtn").onclick = () => $("fileInput").click();
+$("fileInput").onchange = async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  const fd = new FormData(); fd.append("file", f);
+  await fetch("/api/upload", { method: "POST", body: fd });
+  e.target.value = "";
+};
+document.addEventListener("keydown", (e) => {
+  const typing = ["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName);
+  if (e.code === "Space" && !typing) { e.preventDefault(); scanNow(); }
+  if (e.key === "Enter" && current && !(document.activeElement.tagName === "SELECT")) { e.preventDefault(); submit(); }
+  if (e.key === "Escape" && current) discard();
+});
+
+// ---------- events from the server ----------
+const es = new EventSource("/api/events");
+es.onmessage = (m) => {
+  const ev = JSON.parse(m.data);
+  if (ev.type === "captured") { beep(880, 90); showReading(ev); }
+  else if (ev.type === "result") { showResult(ev); }
+  else if (ev.type === "error") { showError(ev.message); }
+  else if (ev.type === "crm_saved") {
+    beep(660, 90); beep(990, 140, 0.1);
+    toast(ev.auto ? "All fields verified: auto-submitted ✓" : (ev.new_patient ? "New patient registered ✓" : "Screening added to existing patient ✓"));
+    if (current && ev.auto) clearReview();
+    if (!current) showSaved(ev);
+  }
+};
+
+fetch("/api/pending").then((r) => r.json()).then((ev) => { if (ev && !current) showResult(ev); });
+
+function showReading(ev) {
+  current = null;
+  $("reviewHead").hidden = true; $("reviewFoot").hidden = true;
+  $("reviewBody").innerHTML = `<div class="empty-state"><div><div class="spinner"></div><b>Reading card…</b><br><span class="muted">Two AI reads run in parallel and get cross-checked</span></div></div>`;
+  setCardImage(ev.image);
+}
+
+function showError(msg) {
+  $("reviewBody").innerHTML = `<div class="empty-state"><div><div class="big">⚠️</div><b>Couldn't read the card</b><p class="muted">${esc(msg)}</p>
+    <button class="btn primary" onclick="scanNow()">Try again</button></div></div>`;
+  toast("Scan failed", "error");
+}
+
+function setCardImage(url) {
+  $("cardView").hidden = false;
+  cardImage = new Image();
+  cardImage.src = url;
+  $("cardImg").src = url;
+  $("cardView").querySelectorAll(".hl").forEach((n) => n.remove());
+  cardImage.decode().then(fitCard).catch(() => {});
+}
+
+// Size the card so the whole thing fits in its panel (highlight boxes stay aligned).
+function fitCard() {
+  if (!cardImage || !cardImage.naturalWidth) return;
+  const view = $("cardView"), wrap = view.querySelector(".wrap");
+  const aspect = cardImage.naturalWidth / cardImage.naturalHeight;
+  const w = Math.min(view.clientWidth - 16, (view.clientHeight - 16) * aspect);
+  wrap.style.width = Math.max(w, 120) + "px";
+}
+window.addEventListener("resize", fitCard);
+
+function showResult(ev) {
+  current = ev;
+  setCardImage(ev.image);
+  const c = ev.counts;
+  $("counts").innerHTML =
+    `<span class="pill ok">✓ ${c.ok + c.empty} ok</span> ` +
+    (c.check ? `<span class="pill check">⚠ ${c.check} verify</span> ` : "") +
+    (c.missing ? `<span class="pill missing">✕ ${c.missing} missing</span>` : "");
+  $("timing").textContent = `${ev.seconds}s`;
+  $("reviewHead").hidden = false; $("reviewFoot").hidden = false;
+
+  let html = "";
+  if (ev.alerts.length) {
+    html += `<div class="section-title">Screening flags (not a diagnosis)</div>`;
+    html += ev.alerts.map((a) => `<div class="alert ${a.level}"><b>${a.level.replace("_", "-")}</b>${esc(a.text)}</div>`).join("");
+  }
+  const sections = {};
+  Object.values(ev.fields).forEach((f) => (sections[f.section] ||= []).push(f));
+  for (const [name, fields] of Object.entries(sections)) {
+    html += `<div class="section-title">${esc(name)}</div><div class="fields">`;
+    html += fields.map(fieldHtml).join("");
+    html += `</div>`;
+  }
+  $("reviewBody").innerHTML = html;
+
+  // crops + highlight boxes once the image has loaded
+  const draw = () => {
+    Object.values(ev.fields).forEach((f) => {
+      if ((f.status === "check" || f.status === "missing") && f.box) {
+        drawCrop(f);
+        addHighlight(f);
+      }
+    });
+  };
+  cardImage.decode().then(() => { fitCard(); draw(); }).catch(() => {});
+
+  $("reviewBody").querySelectorAll(".chip").forEach((chip) => chip.onclick = () => {
+    const input = $("f_" + chip.dataset.key); input.value = chip.dataset.value; input.focus();
+  });
+  $("reviewBody").querySelectorAll("input, select").forEach((el) => {
+    el.addEventListener("focus", () => focusBox(el.dataset.key));
+  });
+  const firstFlag = $("reviewBody").querySelector(".field.check input, .field.check select, .field.missing input, .field.missing select");
+  (firstFlag || $("submitBtn")).focus();
+}
+
+function fieldHtml(f) {
+  let input;
+  if (f.kind === "choice") {
+    input = `<select id="f_${f.key}" data-key="${f.key}"><option value=""></option>` +
+      f.choices.map((c) => `<option ${c === f.value ? "selected" : ""}>${esc(c)}</option>`).join("") + `</select>`;
+  } else {
+    input = `<input id="f_${f.key}" data-key="${f.key}" value="${esc(f.value)}" autocomplete="off">`;
+  }
+  const icon = { ok: "✓", check: "⚠", missing: "✕", empty: "–" }[f.status];
+  let extra = "";
+  if (f.status === "check" || f.status === "missing") {
+    const reasons = [...f.issues];
+    if (!f.agree) reasons.push(f.note);
+    else if (f.confidence !== "high" && f.note) reasons.push(f.note);
+    if (f.status === "missing" && !reasons.length) reasons.push("Required field is blank or unreadable");
+    if (!reasons.length) reasons.push(`AI confidence: ${f.confidence}`);
+    const chips = [...new Set([...(f.suggestion ? [f.suggestion] : []), ...f.alternatives])]
+      .filter((v) => v && v !== f.value)
+      .map((v) => `<button type="button" class="chip" data-key="${f.key}" data-value="${esc(v)}">${f.suggestion === v ? "Use calculated " : ""}${esc(v)}</button>`).join("");
+    extra = `<div class="why">${reasons.map(esc).join(" · ")}</div>${chips ? `<div class="chips">${chips}</div>` : ""}`;
+    return `<div class="field ${f.status}"><label>${esc(f.label)}<span>${icon}</span></label>
+      <div class="row"><div>${input}${extra}</div>${f.box ? `<canvas id="crop_${f.key}" width="220" height="70"></canvas>` : ""}</div></div>`;
+  }
+  return `<div class="field ${f.status}"><label>${esc(f.label)}<span>${icon}</span></label>${input}</div>`;
+}
+
+function paddedBox(f) {
+  let [y0, x0, y1, x1] = f.box.map((v) => v / 1000);
+  const h = y1 - y0, w = x1 - x0;
+  y0 -= h * 0.6; y1 += h * 0.6; x0 -= Math.max(w * 0.25, 0.03); x1 += Math.max(w * 0.25, 0.03);
+  return [Math.max(0, y0), Math.max(0, x0), Math.min(1, y1), Math.min(1, x1)];
+}
+
+function drawCrop(f) {
+  const canvas = $("crop_" + f.key); if (!canvas) return;
+  const [y0, x0, y1, x1] = paddedBox(f);
+  const W = cardImage.naturalWidth, H = cardImage.naturalHeight;
+  const sw = (x1 - x0) * W, sh = (y1 - y0) * H;
+  canvas.height = Math.round(canvas.width * sh / sw);
+  if (canvas.height > 140) { canvas.height = 140; canvas.width = Math.round(140 * sw / sh); }
+  canvas.getContext("2d").drawImage(cardImage, x0 * W, y0 * H, sw, sh, 0, 0, canvas.width, canvas.height);
+}
+
+function addHighlight(f) {
+  const [y0, x0, y1, x1] = f.box.map((v) => v / 10);
+  const d = document.createElement("div");
+  d.className = "hl " + f.status; d.dataset.key = f.key;
+  Object.assign(d.style, { top: y0 + "%", left: x0 + "%", height: (y1 - y0) + "%", width: (x1 - x0) + "%" });
+  $("cardView").querySelector(".wrap").appendChild(d);
+}
+
+function focusBox(key) {
+  $("cardView").querySelectorAll(".hl").forEach((n) => n.classList.toggle("focus", n.dataset.key === key));
+  const f = current && current.fields[key];
+  if (f && f.box && !$("cardView").querySelector(`.hl[data-key="${key}"]`)) {
+    addHighlight(f); $("cardView").querySelector(`.hl[data-key="${key}"]`).classList.add("focus");
+  }
+}
+
+async function submit() {
+  if (!current) return;
+  const scan = current;
+  current = null;  // guard against double-submit
+  const values = {};
+  Object.keys(scan.fields).forEach((k) => values[k] = $("f_" + k).value);
+  const r = await fetch("/api/submit", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ scan_id: scan.scan_id, values }) });
+  if (!r.ok) { current = scan; toast("Submit failed", "error"); return; }
+  clearReview();
+  showSaved({ ...(await r.json()), values });
+}
+
+async function discard() {
+  if (!current) return;
+  await fetch("/api/discard/" + current.scan_id, { method: "POST" });
+  clearReview();
+  toast("Discarded");
+}
+$("submitBtn").onclick = submit;
+$("discardBtn").onclick = discard;
+
+function clearReview() {
+  current = null;
+  $("reviewHead").hidden = true; $("reviewFoot").hidden = true; $("cardView").hidden = true;
+  $("reviewBody").innerHTML = `<div class="empty-state"><div><div class="big">✅</div><b>Saved.</b><p class="muted">Show the next card.</p></div></div>`;
+}
+
+function showSaved(ev) {
+  const name = ev.values && ev.values.full_name ? esc(ev.values.full_name) : "Patient";
+  $("reviewBody").innerHTML = `<div class="empty-state"><div><div class="big">✅</div>
+    <b>${name} ${ev.new_patient ? "registered as a new patient" : "updated: screening added"}</b>
+    <p><a class="btn primary" href="/patient?id=${ev.patient_id}" target="_blank">Open patient chart ↗</a></p>
+    <p class="muted">Show the next card.</p></div></div>`;
+}
+</script>
+</body>
+</html>

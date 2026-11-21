@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Savings</title>
+<link rel="stylesheet" href="/static/app.css">
+<style>
+  .viz-root {
+    --surface-1: #ffffff; --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7;
+    --series-flat: #2a78d6;      /* categorical slot 1: FlatRate (flat price) */
+    --series-pct: #eb6834;       /* categorical slot 2: percentage-of-collections pricing */
+  }
+  .grid2 { display: grid; grid-template-columns: 340px 1fr; gap: 16px; align-items: start; }
+  .inputs { padding: 18px; }
+  .inputs h2 { margin: 0 0 4px; font-size: 17px; }
+  .ctl { margin-top: 16px; }
+  .ctl label { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; color: var(--muted); }
+  .ctl label b { color: var(--text); font-size: 15px; }
+  .ctl input[type=range] { width: 100%; accent-color: var(--brand); margin-top: 6px; }
+  .ctl input[type=number] { width: 120px; border: 1px solid var(--border); border-radius: 7px; padding: 6px 8px; margin-top: 6px; }
+  .ctl .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .presets { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .hero { padding: 20px 22px; background: linear-gradient(135deg, #0b2545, #134074); color: #fff; border: 0; }
+  .hero .lbl { font-size: 14px; opacity: .85; }
+  .hero .big { font-size: 56px; font-weight: 700; line-height: 1.05; letter-spacing: -1px; margin: 4px 0; }
+  .hero .det { font-size: 14px; opacity: .9; }
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 12px; }
+  .tile { padding: 12px 14px; }
+  .tile .lbl { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .tile .val { font-size: 24px; font-weight: 650; margin-top: 2px; }
+  .tile .sub { font-size: 12px; color: #52514e; }
+  .key { display: inline-block; width: 14px; height: 3px; border-radius: 2px; }
+  .chart { padding: 16px 18px; margin-top: 16px; position: relative; }
+  .chart h3 { margin: 0; font-size: 16px; }
+  .chart .sub { color: var(--muted); font-size: 13px; margin: 2px 0 8px; }
+  .legend { display: flex; gap: 16px; font-size: 13px; color: var(--text-secondary); margin: 6px 0 4px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  svg text { font: 12px system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .tip { position: absolute; pointer-events: none; background: #fff; border: 1px solid rgba(11,11,11,.12); border-radius: 8px; padding: 8px 10px;
+    font-size: 13px; box-shadow: 0 6px 18px rgba(0,0,0,.12); display: none; min-width: 190px; z-index: 5; }
+  .tip .r { display: flex; align-items: center; gap: 6px; justify-content: space-between; }
+  .tip .r span:first-child { display: inline-flex; align-items: center; gap: 6px; }
+  table.data td.num, table.data th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .note { font-size: 13px; color: #52514e; line-height: 1.55; }
+  .what td:first-child { color: #52514e; }
+  @media (max-width: 1050px) { .grid2 { grid-template-columns: 1fr; } .tiles { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+<nav id="nav"></nav>
+<div class="page viz-root" style="max-width:1400px">
+  <div class="page-head"><h1>Savings calculator <span class="muted" style="font-size:15px;font-weight:400">· percentage-of-collections vs. flat price</span></h1></div>
+  <div class="grid2">
+    <div class="panel inputs">
+      <h2>Your clinic</h2>
+      <div class="muted small">Move the sliders. Everything updates instantly.</div>
+      <div class="ctl"><label>Providers (doctors, NPs, PAs) <b id="provV"></b></label>
+        <input type="range" id="prov" min="1" max="20" step="1" value="3">
+        <div class="presets"><button class="btn small" data-p="1">Solo</button><button class="btn small" data-p="3">3 providers</button>
+          <button class="btn small" data-p="5">5</button><button class="btn small" data-p="10">10</button></div></div>
+      <div class="ctl"><label>Monthly collections per provider <b id="collV"></b></label>
+        <input type="range" id="coll" min="20000" max="100000" step="1000" value="45000">
+        <div class="hint">Money actually collected per provider per month (primary care is often $35K-$60K).</div></div>
+      <div class="ctl"><label>Percentage-of-collections fee <b id="pctV"></b></label>
+        <input type="range" id="pct" min="3" max="10" step="0.5" value="6">
+        <div class="hint">athenaOne's published estimates: about 4-8% of collections, sometimes more for small practices.</div></div>
+      <div class="ctl"><label>FlatRate price per provider / month</label>
+        <input type="number" id="flat" min="0" step="10" value="499">
+        <div class="hint">Placeholder price for the demo. The team sets the real one.</div></div>
+    </div>
+
+    <div>
+      <div class="panel hero">
+        <div class="lbl">With a flat price instead of a percentage, this clinic would save</div>
+        <div class="big" id="heroV"></div>
+        <div class="det" id="heroD"></div>
+      </div>
+      <div class="tiles">
+        <div class="panel tile"><div class="lbl"><span class="key" style="background:var(--series-pct)"></span>Percentage model / year</div><div class="val" id="tPct"></div><div class="sub" id="tPctS"></div></div>
+        <div class="panel tile"><div class="lbl"><span class="key" style="background:var(--series-flat)"></span>FlatRate / year</div><div class="val" id="tFlat"></div><div class="sub" id="tFlatS"></div></div>
+        <div class="panel tile"><div class="lbl">Savings over 5 years</div><div class="val" id="t5"></div><div class="sub">at today's collections</div></div>
+        <div class="panel tile"><div class="lbl">Per provider / year</div><div class="val" id="tPer"></div><div class="sub">kept by the clinic</div></div>
+      </div>
+
+      <div class="panel chart" id="chartBox">
+        <h3>The more a clinic earns, the more a percentage fee takes. A flat price doesn't move.</h3>
+        <div class="sub" id="chartSub"></div>
+        <div class="legend"><span><span class="key" style="background:var(--series-pct)"></span>Percentage of collections</span>
+          <span><span class="key" style="background:var(--series-flat)"></span>FlatRate flat price</span></div>
+        <svg id="chart" viewBox="0 0 860 320" width="100%" role="img" aria-label="Annual cost by monthly collections per provider"></svg>
+        <div class="tip" id="tip"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid2" style="margin-top:16px">
+    <div class="panel" style="padding:16px 18px">
+      <h3 style="margin:0 0 8px;font-size:15px">Where the numbers come from</h3>
+      <div class="note">athenahealth doesn't publish prices. Third-party reviews estimate athenaOne at about
+        <b>4-8% of monthly collections</b> (sometimes over 10%), with small practices quoted at the high end. That's roughly
+        <b>$65K-$185K/yr for 3 providers</b> and <b>$150K-$450K/yr for 5-10 providers</b>.<br><br>
+        To be fair: the percentage includes billing <i>services</i> (people who work claims and denials). FlatRate replaces
+        most of that work with AI that staff review, which is why it can charge a flat price. Estimates for illustration only.</div>
+    </div>
+    <div class="panel" style="overflow:auto">
+      <table class="data" id="sizes"></table>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:16px;overflow:auto">
+    <table class="data what">
+      <thead><tr><th>Work the percentage fee pays for</th><th>How FlatRate handles it</th><th>Where to see it</th></tr></thead>
+      <tbody>
+        <tr><td>Typing intake forms into the system</td><td>Webcam reads handwritten cards; two AI reads cross-check each other</td><td><a href="/scan">Scan Intake</a></td></tr>
+        <tr><td>Medical coding (picking ICD-10 / CPT codes)</td><td>AI suggests codes with quotes from the note; staff approve</td><td><a href="/billing">Billing</a></td></tr>
+        <tr><td>Scrubbing claims before submission</td><td>Claim checker with one-click fixes and insurer-specific warnings</td><td><a href="/billing">Billing</a></td></tr>
+        <tr><td>Working denials and writing appeals</td><td>AI denial fighter: explains, recommends, drafts the letter</td><td><a href="/billing">Billing</a></td></tr>
+        <tr><td>Scheduling, charting, e-prescribing</td><td>Built in, included in the flat price</td><td><a href="/schedule">Schedule</a> · <a href="/pharmacy">Pharmacy</a></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script src="/static/shell.js"></script>
+<script>
+renderNav("/savings");
+const money = (n) => "$" + Math.round(n).toLocaleString("en-US");
+const compact = (n) => n >= 1e6 ? "$" + (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + "M" : n >= 1000 ? "$" + Math.round(n / 1000) + "K" : "$" + Math.round(n);
+const pctCost = (prov, coll, pct) => prov * coll * 12 * pct / 100;
+const flatCost = (prov, price) => prov * price * 12;
+const css = (v) => getComputedStyle(document.querySelector(".viz-root")).getPropertyValue(v).trim();
+
+function inputs() {
+  return { prov: +$("prov").value, coll: +$("coll").value, pct: +$("pct").value, flat: Math.max(0, +$("flat").value || 0) };
+}
+
+function update() {
+  const s = inputs();
+  $("provV").textContent = s.prov; $("collV").textContent = money(s.coll); $("pctV").textContent = s.pct + "%";
+  const P = pctCost(s.prov, s.coll, s.pct), F = flatCost(s.prov, s.flat), save = P - F;
+  $("heroV").textContent = (save >= 0 ? money(save) : "-" + money(-save)) + " / year";
+  $("heroD").textContent = `${s.prov} provider${s.prov > 1 ? "s" : ""} collecting ${money(s.coll * s.prov * 12)} a year · ${money(P)} at ${s.pct}% vs ${money(F)} flat`;
+  $("tPct").textContent = money(P); $("tPctS").textContent = `${s.pct}% of ${compact(s.coll * s.prov * 12)} collected`;
+  $("tFlat").textContent = money(F); $("tFlatS").textContent = `${money(s.flat)} × ${s.prov} × 12 months`;
+  $("t5").textContent = money(save * 5); $("tPer").textContent = money(save / s.prov);
+  $("chartSub").textContent = `Annual cost for ${s.prov} provider${s.prov > 1 ? "s" : ""}, by monthly collections per provider. Dots = your clinic today.`;
+  $("sizes").innerHTML = `<thead><tr><th>Clinic size</th><th class="num">Percentage model</th><th class="num">FlatRate</th><th class="num">Saved / year</th></tr></thead><tbody>` +
+    [1, 3, 5, 10].map((n) => { const p = pctCost(n, s.coll, s.pct), f = flatCost(n, s.flat);
+      return `<tr ${n === s.prov ? 'style="background:#eef5ff;font-weight:600"' : ""}><td>${n} provider${n > 1 ? "s" : ""}</td><td class="num">${money(p)}</td><td class="num">${money(f)}</td><td class="num">${money(p - f)}</td></tr>`; }).join("") + "</tbody>";
+  drawChart(s);
+}
+
+// ---------- line chart (plain SVG) ----------
+const W = 860, H = 320, M = { l: 64, r: 150, t: 12, b: 40 };
+const X0 = 20000, X1 = 100000;
+function niceMax(v) { const p = Math.pow(10, Math.floor(Math.log10(v))); for (const m of [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) if (m * p >= v) return m * p; return 10 * p; }
+
+function drawChart(s) {
+  const ymax = niceMax(Math.max(pctCost(s.prov, X1, s.pct), flatCost(s.prov, s.flat)) * 1.05);
+  const x = (v) => M.l + (v - X0) / (X1 - X0) * (W - M.l - M.r);
+  const y = (v) => H - M.b - v / ymax * (H - M.t - M.b);
+  const pctC = css("--series-pct"), flatC = css("--series-flat"), grid = css("--grid"), axis = css("--axis"), muted = css("--text-muted"), ink = css("--text-primary"), ink2 = css("--text-secondary");
+  let g = "";
+  for (let i = 0; i <= 4; i++) {           // recessive hairline grid + compact y ticks
+    const v = ymax * i / 4;
+    g += `<line x1="${M.l}" x2="${W - M.r}" y1="${y(v)}" y2="${y(v)}" stroke="${i ? grid : axis}" stroke-width="1"/>`;
+    g += `<text x="${M.l - 8}" y="${y(v) + 4}" text-anchor="end" fill="${muted}" style="font-variant-numeric:tabular-nums">${compact(v)}</text>`;
+  }
+  for (let v = X0; v <= X1; v += 20000) g += `<text x="${x(v)}" y="${H - M.b + 18}" text-anchor="middle" fill="${muted}">${compact(v)}</text>`;
+  g += `<text x="${(M.l + W - M.r) / 2}" y="${H - 4}" text-anchor="middle" fill="${muted}">Monthly collections per provider</text>`;
+  // lines
+  const pts = [];
+  for (let v = X0; v <= X1; v += 2000) pts.push(v);
+  const pctPath = pts.map((v, i) => `${i ? "L" : "M"}${x(v).toFixed(1)},${y(pctCost(s.prov, v, s.pct)).toFixed(1)}`).join("");
+  g += `<path d="M${x(X0)},${y(0)} ${pctPath.slice(1).replace(/^/, "L")} L${x(X1)},${y(0)} Z" fill="${pctC}" opacity="0.08"/>`;
+  g += `<path d="${pctPath}" fill="none" stroke="${pctC}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  g += `<line x1="${x(X0)}" x2="${x(X1)}" y1="${y(flatCost(s.prov, s.flat))}" y2="${y(flatCost(s.prov, s.flat))}" stroke="${flatC}" stroke-width="2" stroke-linecap="round"/>`;
+  // direct end labels (text in ink, colored key beside it); nudge apart only if they would collide
+  let yp = y(pctCost(s.prov, X1, s.pct)), yf = y(flatCost(s.prov, s.flat));
+  if (Math.abs(yp - yf) < 30) { const mid = (yp + yf) / 2; yp = mid - 15; yf = mid + 15; }
+  g += `<rect x="${W - M.r + 8}" y="${yp - 1.5}" width="12" height="3" rx="1.5" fill="${pctC}"/><text x="${W - M.r + 26}" y="${yp + 4}" fill="${ink}" font-weight="600">${compact(pctCost(s.prov, X1, s.pct))}</text>
+        <text x="${W - M.r + 26}" y="${yp + 19}" fill="${ink2}">${s.pct}% of collections</text>`;
+  g += `<rect x="${W - M.r + 8}" y="${yf - 1.5}" width="12" height="3" rx="1.5" fill="${flatC}"/><text x="${W - M.r + 26}" y="${yf + 4}" fill="${ink}" font-weight="600">${compact(flatCost(s.prov, s.flat))}</text>
+        <text x="${W - M.r + 26}" y="${yf + 19}" fill="${ink2}">FlatRate (flat)</text>`;
+  // "your clinic" markers with a 2px surface ring
+  const cx = x(s.coll);
+  g += `<line x1="${cx}" x2="${cx}" y1="${M.t}" y2="${H - M.b}" stroke="${axis}" stroke-width="1"/>`;
+  g += `<text x="${cx}" y="${M.t + 10}" text-anchor="${cx > W - M.r - 80 ? "end" : "start"}" dx="${cx > W - M.r - 80 ? -6 : 6}" fill="${ink2}">Your clinic</text>`;
+  g += `<circle cx="${cx}" cy="${y(pctCost(s.prov, s.coll, s.pct))}" r="5" fill="${pctC}" stroke="#fff" stroke-width="2"/>`;
+  g += `<circle cx="${cx}" cy="${y(flatCost(s.prov, s.flat))}" r="5" fill="${flatC}" stroke="#fff" stroke-width="2"/>`;
+  // hover layer: crosshair + tooltip
+  g += `<line id="xh" x1="0" x2="0" y1="${M.t}" y2="${H - M.b}" stroke="${muted}" stroke-width="1" visibility="hidden"/>`;
+  g += `<rect id="hit" x="${M.l}" y="${M.t}" width="${W - M.l - M.r}" height="${H - M.t - M.b}" fill="transparent"/>`;
+  $("chart").innerHTML = g;
+
+  const svg = $("chart"), tip = $("tip"), box = $("chartBox");
+  $("hit").onmousemove = (e) => {
+    const r = svg.getBoundingClientRect(), sx = (e.clientX - r.left) * W / r.width;
+    const v = Math.round((X0 + (sx - M.l) / (W - M.l - M.r) * (X1 - X0)) / 1000) * 1000;
+    const P = pctCost(s.prov, v, s.pct), F = flatCost(s.prov, s.flat);
+    $("xh").setAttribute("x1", x(v)); $("xh").setAttribute("x2", x(v)); $("xh").setAttribute("visibility", "visible");
+    tip.innerHTML = `<b>${money(v)}/month per provider</b>
+      <div class="r"><span><span class="key" style="background:${pctC}"></span>${s.pct}% model</span><b>${money(P)}</b></div>
+      <div class="r"><span><span class="key" style="background:${flatC}"></span>FlatRate</span><b>${money(F)}</b></div>
+      <div class="r" style="border-top:1px solid #eee;margin-top:4px;padding-top:4px"><span>Saved</span><b>${money(P - F)}</b></div>`;
+    const br = box.getBoundingClientRect();
+    tip.style.display = "block";
+    const left = e.clientX - br.left + 14;
+    tip.style.left = Math.min(left, br.width - 210) + "px";
+    tip.style.top = (e.clientY - br.top - 20) + "px";
+  };
+  $("hit").onmouseleave = () => { tip.style.display = "none"; $("xh").setAttribute("visibility", "hidden"); };
+}
+
+["prov", "coll", "pct", "flat"].forEach((id) => $(id).addEventListener("input", update));
+document.querySelectorAll("[data-p]").forEach((b) => b.onclick = () => { $("prov").value = b.dataset.p; update(); });
+update();
+</script>
+</body>
+</html>

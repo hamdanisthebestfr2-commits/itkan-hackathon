@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Patients</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<nav id="nav"></nav>
+<div class="page">
+  <div class="page-head">
+    <h1>Patients <span class="muted" id="count" style="font-size:15px;font-weight:400"></span></h1>
+    <input class="search" id="search" placeholder="Search name, phone, or MRN" autocomplete="off">
+    <button class="btn primary" id="newBtn">+ Register patient</button>
+  </div>
+  <div class="panel" style="overflow:auto">
+    <table class="data">
+      <thead><tr><th>Patient</th><th>DOB / Age</th><th>Phone</th><th>Insurance</th><th>Allergies</th><th>Last visit</th><th>Next appointment</th></tr></thead>
+      <tbody id="rows"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script src="/static/shell.js"></script>
+<script src="/static/patient-form.js"></script>
+<script>
+renderNav("/patients");
+let flashId = null;
+
+async function load() {
+  const rows = await api("/api/patients?q=" + encodeURIComponent($("search").value));
+  $("count").textContent = `(${rows.length})`;
+  $("rows").innerHTML = rows.map((p) => `
+    <tr class="click ${p.id === flashId ? "flash" : ""}" data-id="${p.id}">
+      <td><span class="strong">${esc(p.last_name)}, ${esc(p.first_name)}</span>
+          ${p.source === "card scan" ? ' <span class="badge scan" title="Registered from an intake card scan">Card scan</span>' : ""}<br>
+          <span class="muted small">${esc(p.mrn)}</span></td>
+      <td>${fmtDate(p.dob)}<br><span class="muted small">${p.dob ? age(p.dob) + " yrs" : ""}${p.sex ? " · " + (SEX[p.sex] || p.sex) : ""}</span></td>
+      <td>${esc(p.phone)}</td>
+      <td>${p.payer_name ? esc(p.payer_name) : '<span class="badge amber">None on file</span>'}<br><span class="muted small">${esc(p.member_id)}</span></td>
+      <td>${p.allergies ? p.allergies.split(";").map((a) => `<span class="badge red">${esc(a.trim())}</span>`).join(" ") : '<span class="muted small">NKDA</span>'}</td>
+      <td>${p.last_visit ? fmtDate(p.last_visit) : '<span class="muted small">-</span>'}</td>
+      <td>${p.next_appt ? fmtDateTime(p.next_appt) : '<span class="muted small">-</span>'}</td>
+    </tr>`).join("") || `<tr><td colspan="7" class="empty">No patients match "${esc($("search").value)}".</td></tr>`;
+  $("rows").querySelectorAll("tr.click").forEach((tr) => tr.onclick = () => location.href = "/patient?id=" + tr.dataset.id);
+}
+
+let t;
+$("search").oninput = () => { clearTimeout(t); t = setTimeout(load, 150); };
+$("newBtn").onclick = () => openPatientForm(null, (id) => { flashId = id; load(); });
+onEvent((ev) => {
+  if (ev.type === "patient_created" || ev.type === "crm_saved" || ev.type === "clinic_reset") {
+    flashId = ev.patient_id || null;
+    load();
+  }
+});
+load();
+if (location.hash === "#register") $("newBtn").click();
+</script>
+</body>
+</html>

@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Schedule</title>
+<link rel="stylesheet" href="/static/app.css">
+<style>
+  .toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .toolbar h1 { font-size: 22px; margin: 0 8px 0 0; }
+  .toolbar .date { font-size: 17px; font-weight: 600; min-width: 230px; }
+  .toolbar input[type=date] { border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; }
+  .summary { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; align-items: center; }
+  .booking-banner { background: #e8f0fb; border: 1px solid #bcd3f2; color: #1d4f91; padding: 10px 14px; border-radius: 8px; margin-bottom: 12px; display: flex; gap: 12px; align-items: center; }
+  .booking-banner b { flex: 1; font-weight: 600; }
+
+  .cal { display: grid; overflow: auto; }
+  .cal-head { display: grid; position: sticky; top: 0; z-index: 3; background: #fff; border-bottom: 1px solid var(--border); }
+  .cal-head .prov { padding: 10px 12px; border-left: 1px solid var(--border); display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
+  .cal-head .prov .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .cal-head .prov .sub { color: var(--muted); font-weight: 400; font-size: 12px; }
+  .cal-body { display: grid; position: relative; }
+  .times { position: relative; }
+  .times .t { position: absolute; right: 8px; font-size: 11px; color: var(--muted); transform: translateY(-50%); }
+  .times .t:first-child { transform: none; }
+  .col { position: relative; border-left: 1px solid var(--border); }
+  .slot { position: absolute; left: 0; right: 0; border-top: 1px solid #f0f2f5; cursor: pointer; }
+  .slot.hour { border-top-color: #e1e5eb; }
+  .slot:hover { background: #eef5ff; }
+  .slot:hover::after { content: "+ Book"; position: absolute; left: 8px; top: 1px; font-size: 11px; color: var(--brand); font-weight: 600; }
+  .col.booking .slot:hover { background: #d9e8ff; }
+  .slot.past { cursor: default; background: repeating-linear-gradient(135deg, #fafbfc, #fafbfc 6px, #f3f5f8 6px, #f3f5f8 12px); }
+  .slot.past:hover::after { content: ""; }
+
+  .appt {
+    position: absolute; left: 4px; right: 4px; border-radius: 7px; padding: 4px 8px; font-size: 12px; cursor: pointer;
+    overflow: hidden; border-left: 4px solid; box-shadow: 0 1px 2px rgba(0,0,0,.08); z-index: 2; line-height: 1.3;
+  }
+  .appt:hover { box-shadow: 0 3px 10px rgba(0,0,0,.18); z-index: 4; }
+  .appt .nm { font-weight: 700; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .appt .rs { color: #3c4655; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .appt .st { position: absolute; right: 6px; top: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; }
+  .appt.booked { background: #eef4ff; border-color: #5b8def; }
+  .appt.checked_in { background: #fff4dc; border-color: #e0a030; }
+  .appt.in_visit { background: #f1eaff; border-color: #8b5cf6; }
+  .appt.completed { background: #e7f6ed; border-color: #1f8a4c; }
+  .appt.cancelled, .appt.no_show { background: #f4f5f7; border-color: #b8bec8; opacity: .7; }
+  .appt.cancelled .nm { text-decoration: line-through; }
+  .appt.no_show { border-color: #c4291c; }
+  .appt.flash { animation: apptflash 2s ease-out; }
+  @keyframes apptflash { 0% { box-shadow: 0 0 0 4px #13b38a; } 100% { box-shadow: 0 1px 2px rgba(0,0,0,.08); } }
+  .now-line { position: absolute; left: 0; right: 0; height: 2px; background: #e5484d; z-index: 5; pointer-events: none; }
+  .now-line::before { content: ""; position: absolute; left: -5px; top: -4px; width: 10px; height: 10px; border-radius: 50%; background: #e5484d; }
+
+  .legend { display: flex; gap: 10px; font-size: 12px; color: var(--muted); align-items: center; flex-wrap: wrap; }
+  .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; background: var(--c); }
+
+  .pt-results { border: 1px solid var(--border); border-radius: 8px; margin-top: 4px; max-height: 220px; overflow: auto; }
+  .pt-results div { padding: 8px 10px; cursor: pointer; font-size: 14px; border-top: 1px solid #f0f2f5; }
+  .pt-results div:first-child { border-top: 0; }
+  .pt-results div:hover, .pt-results div.sel { background: #eef5ff; }
+  .chosen { display: flex; align-items: center; gap: 10px; border: 1px solid #bcd3f2; background: #f3f8ff; border-radius: 8px; padding: 8px 10px; }
+  .chosen b { flex: 1; }
+  .detail-grid { display: grid; grid-template-columns: 110px 1fr; gap: 8px 12px; font-size: 14px; }
+  .detail-grid .k { color: var(--muted); }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<nav id="nav"></nav>
+<div class="page" style="max-width:1400px">
+  <div class="toolbar">
+    <h1>Schedule</h1>
+    <button class="btn" id="prevBtn" title="Previous day">‹</button>
+    <button class="btn" id="todayBtn">Today</button>
+    <button class="btn" id="nextBtn" title="Next day">›</button>
+    <span class="date" id="dateLabel"></span>
+    <input type="date" id="datePick">
+    <span style="flex:1"></span>
+    <label class="small"><input type="checkbox" id="showCancelled"> Show cancelled</label>
+    <button class="btn small" id="resetBtn" title="Restore the fictional demo patients and today's appointments">Reset demo data</button>
+  </div>
+  <div class="summary" id="summary"></div>
+  <div id="bookingBanner"></div>
+  <div class="panel cal" id="cal"></div>
+</div>
+
+<script src="/static/shell.js"></script>
+<script src="/static/patient-form.js"></script>
+<script>
+renderNav("/schedule");
+const DAY_START = 8, DAY_END = 19, SLOT = 15, PX_PER_MIN = 1.5;   // 8 AM-7 PM (covers an evening demo), 15-minute rows
+const STATUS_LABEL = { booked: "Booked", checked_in: "Checked in", in_visit: "In visit", completed: "Done", cancelled: "Cancelled", no_show: "No-show" };
+const VISIT_TYPES = { new: "New patient", follow_up: "Follow-up", sick: "Sick visit", physical: "Annual physical", screening: "Screening follow-up" };
+
+const params = new URLSearchParams(location.search);
+let day = params.get("date") || isoDay(new Date());
+let bookingFor = null;          // patient being booked from their chart (?patient_id=)
+let providers = [], appts = [], flashId = Number(params.get("appt")) || null;
+
+function isoDay(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
+function addDays(iso, n) { const d = new Date(iso + "T00:00"); d.setDate(d.getDate() + n); return isoDay(d); }
+const pad = (n) => String(n).padStart(2, "0");
+const minutesOf = (iso) => { const d = new Date(iso); return d.getHours() * 60 + d.getMinutes(); };
+const timeLabel = (mins) => new Date(2000, 0, 1, Math.floor(mins / 60), mins % 60).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+const isPast = (iso, mins) => new Date(`${iso}T${pad(Math.floor(mins / 60))}:${pad(mins % 60)}:00`) < new Date(Date.now() - 15 * 60000);
+
+async function load() {
+  providers = (await reference()).providers;
+  appts = await api("/api/appointments?day=" + day);
+  render();
+}
+
+function render() {
+  const d = new Date(day + "T00:00");
+  $("dateLabel").textContent = d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  $("datePick").value = day;
+  const visible = appts.filter((a) => $("showCancelled").checked || !["cancelled", "no_show"].includes(a.status));
+
+  // summary pills
+  const count = (s) => appts.filter((a) => a.status === s).length;
+  const active = appts.filter((a) => !["cancelled", "no_show"].includes(a.status)).length;
+  $("summary").innerHTML = `<span class="pill info">${active} appointment${active === 1 ? "" : "s"}</span>
+    <span class="pill check">${count("checked_in")} waiting</span>
+    <span class="pill" style="background:#f1eaff;color:#6d3fd6">${count("in_visit")} in visit</span>
+    <span class="pill ok">${count("completed")} done</span>
+    ${count("cancelled") + count("no_show") ? `<span class="pill missing">${count("cancelled") + count("no_show")} cancelled / no-show</span>` : ""}
+    <span style="flex:1"></span>
+    <span class="legend">${Object.entries({ booked: "#5b8def", checked_in: "#e0a030", in_visit: "#8b5cf6", completed: "#1f8a4c" })
+      .map(([s, c]) => `<span style="--c:${c}">${STATUS_LABEL[s]}</span>`).join("")}</span>`;
+
+  // booking-mode banner
+  $("bookingBanner").innerHTML = bookingFor ? `<div class="booking-banner">📅 <b>Booking for ${esc(bookingFor.first_name)} ${esc(bookingFor.last_name)}: click an open time slot.</b>
+    <button class="btn small" onclick="bookingFor=null;history.replaceState(null,'','/schedule?date='+day);render()">Cancel</button></div>` : "";
+
+  const mins = (DAY_END - DAY_START) * 60, height = mins * PX_PER_MIN;
+  const cols = `70px repeat(${providers.length}, minmax(190px, 1fr))`;
+  let html = `<div class="cal-head" style="grid-template-columns:${cols}"><div></div>${providers.map((p) => {
+    const n = visible.filter((a) => a.provider_id === p.id && !["cancelled", "no_show"].includes(a.status)).length;
+    return `<div class="prov"><span class="dot" style="background:${p.color}"></span><div>${esc(p.name)}, ${esc(p.credentials)}
+      <div class="sub">${esc(p.specialty)} · ${n} appt${n === 1 ? "" : "s"}</div></div></div>`;
+  }).join("")}</div>`;
+  html += `<div class="cal-body" style="grid-template-columns:${cols};height:${height + 10}px"><div class="times">`;
+  for (let m = 0; m <= mins; m += 60) html += `<div class="t" style="top:${m * PX_PER_MIN}px">${timeLabel(DAY_START * 60 + m)}</div>`;
+  html += `</div>`;
+  for (const p of providers) {
+    html += `<div class="col ${bookingFor ? "booking" : ""}" data-prov="${p.id}">`;
+    for (let m = 0; m < mins; m += SLOT) {
+      const abs = DAY_START * 60 + m;
+      html += `<div class="slot ${m % 60 === 0 ? "hour" : ""} ${isPast(day, abs) ? "past" : ""}" data-min="${abs}"
+        style="top:${m * PX_PER_MIN}px;height:${SLOT * PX_PER_MIN}px" title="${timeLabel(abs)}"></div>`;
+    }
+    for (const a of visible.filter((x) => x.provider_id === p.id)) {
+      const top = (minutesOf(a.start) - DAY_START * 60) * PX_PER_MIN, h = Math.max(a.duration_min * PX_PER_MIN - 2, 20);
+      html += `<div class="appt ${a.status} ${a.id === flashId ? "flash" : ""}" data-id="${a.id}" style="top:${top + 1}px;height:${h}px">
+        <span class="st">${STATUS_LABEL[a.status]}</span>
+        <div class="nm">${esc(a.first_name)} ${esc(a.last_name)}</div>
+        ${h > 30 ? `<div class="rs">${timeLabel(minutesOf(a.start))}${a.reason ? " · " + esc(a.reason) : ""}</div>` : ""}</div>`;
+    }
+    html += `</div>`;
+  }
+  html += `</div>`;
+  $("cal").innerHTML = html;
+
+  if (day === isoDay(new Date())) {
+    const nowMin = new Date().getHours() * 60 + new Date().getMinutes() - DAY_START * 60;
+    if (nowMin >= 0 && nowMin <= mins) {
+      const line = document.createElement("div");
+      line.className = "now-line";
+      line.style.top = nowMin * PX_PER_MIN + "px";
+      $("cal").querySelector(".cal-body").appendChild(line);
+      line.style.left = "70px";
+    }
+  }
+
+  $("cal").querySelectorAll(".slot:not(.past)").forEach((s) => s.onclick = () =>
+    openBooking({ provider_id: Number(s.parentElement.dataset.prov), minute: Number(s.dataset.min), patient: bookingFor }));
+  $("cal").querySelectorAll(".appt").forEach((el) => el.onclick = () => openDetail(appts.find((a) => a.id === Number(el.dataset.id))));
+  if (flashId) {
+    const a = appts.find((x) => x.id === flashId);
+    if (a && params.get("appt") && !openDetail._shown) { openDetail._shown = true; openDetail(a); }
+    flashId = null;
+  }
+}
+
+// ---------- booking ----------
+function timeOptions(selected) {
+  let o = "";
+  for (let m = DAY_START * 60; m < DAY_END * 60; m += SLOT) o += `<option value="${m}" ${m === selected ? "selected" : ""}>${timeLabel(m)}</option>`;
+  return o;
+}
+
+function openBooking(state) {
+  const providerOpts = providers.map((p) => `<option value="${p.id}" ${p.id === state.provider_id ? "selected" : ""}>${esc(p.name)}, ${esc(p.credentials)}</option>`).join("");
+  const m = openModal(`
+    <div class="modal-head"><h2>Book appointment</h2><button class="x" onclick="closeModal()">×</button></div>
+    <form id="bookForm" autocomplete="off"><div class="modal-body"><div class="form-grid">
+      <div class="f s6"><label class="req">Patient</label><div id="patientPick"></div></div>
+      <div class="f"><label>Date</label><input type="date" name="date" value="${state.date || day}" required></div>
+      <div class="f"><label>Time</label><select name="minute">${timeOptions(state.minute)}</select></div>
+      <div class="f"><label>Length</label><select name="duration_min">
+        ${[15, 30, 45, 60].map((n) => `<option value="${n}" ${n === (state.duration_min || 30) ? "selected" : ""}>${n} min</option>`).join("")}</select></div>
+      <div class="f s3"><label>Provider</label><select name="provider_id">${providerOpts}</select></div>
+      <div class="f s3"><label>Visit type</label><select name="visit_type">
+        ${Object.entries(VISIT_TYPES).map(([k, l]) => `<option value="${k}" ${k === (state.visit_type || "follow_up") ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+      <div class="f s6"><label>Reason for visit</label><input name="reason" value="${esc(state.reason || "")}" placeholder="e.g. Blood pressure follow-up"></div>
+    </div></div>
+    <div class="modal-foot"><span class="form-error" id="bookError"></span>
+      <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+      <button type="submit" class="btn primary">Book appointment</button></div></form>`);
+
+  let chosen = state.patient || null;
+  const pick = m.querySelector("#patientPick");
+  const renderPick = () => {
+    if (chosen) {
+      pick.innerHTML = `<div class="chosen"><b>${esc(chosen.first_name)} ${esc(chosen.last_name)}</b>
+        <span class="muted small">${esc(chosen.mrn)} · DOB ${fmtDate(chosen.dob)}</span>
+        <button type="button" class="btn small" id="changePt">Change</button></div>`;
+      pick.querySelector("#changePt").onclick = () => { chosen = null; renderPick(); };
+      return;
+    }
+    pick.innerHTML = `<div style="display:flex;gap:8px"><input id="ptSearch" placeholder="Search patient by name, phone, or MRN" style="flex:1">
+      <button type="button" class="btn" id="newPt">+ New patient</button></div><div id="ptResults"></div>`;
+    const input = pick.querySelector("#ptSearch");
+    let results = [], sel = 0, timer;
+    const show = () => {
+      pick.querySelector("#ptResults").innerHTML = results.length ? `<div class="pt-results">${results.map((p, i) =>
+        `<div class="${i === sel ? "sel" : ""}" data-i="${i}"><b>${esc(p.last_name)}, ${esc(p.first_name)}</b>
+         <span class="muted small"> · ${esc(p.mrn)} · DOB ${fmtDate(p.dob)} · ${esc(p.phone || "")}</span></div>`).join("")}</div>`
+        : (input.value ? `<p class="muted small">No match. Use "+ New patient" to register them.</p>` : "");
+      pick.querySelectorAll(".pt-results div").forEach((el) => el.onclick = () => { chosen = results[+el.dataset.i]; renderPick(); });
+    };
+    input.oninput = () => { clearTimeout(timer); timer = setTimeout(async () => {
+      results = input.value.trim() ? (await api("/api/patients?q=" + encodeURIComponent(input.value.trim()))).slice(0, 6) : [];
+      sel = 0; show();
+    }, 120); };
+    input.onkeydown = (e) => {
+      if (e.key === "ArrowDown") { sel = Math.min(sel + 1, results.length - 1); show(); e.preventDefault(); }
+      if (e.key === "ArrowUp") { sel = Math.max(sel - 1, 0); show(); e.preventDefault(); }
+      if (e.key === "Enter" && results[sel]) { chosen = results[sel]; renderPick(); e.preventDefault(); }
+    };
+    pick.querySelector("#newPt").onclick = () => {
+      const form = new FormData(m.querySelector("#bookForm"));
+      const keep = { ...state, minute: Number(form.get("minute")), date: form.get("date"), provider_id: Number(form.get("provider_id")),
+        duration_min: Number(form.get("duration_min")), visit_type: form.get("visit_type"), reason: form.get("reason") };
+      openPatientForm(null, async (id) => openBooking({ ...keep, patient: await api("/api/patients/" + id) }));
+    };
+    input.focus();
+  };
+  renderPick();
+
+  m.querySelector("#bookForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!chosen) { $("bookError").textContent = "Pick a patient first."; return; }
+    const f = new FormData(e.target), minute = Number(f.get("minute"));
+    const date = f.get("date");
+    if (isPast(date, minute)) { $("bookError").textContent = "That time has already passed."; return; }
+    try {
+      const res = await api("/api/appointments", { method: "POST", body: {
+        patient_id: chosen.id, provider_id: Number(f.get("provider_id")), start: `${date}T${pad(Math.floor(minute / 60))}:${pad(minute % 60)}:00`,
+        duration_min: Number(f.get("duration_min")), visit_type: f.get("visit_type"), reason: f.get("reason") } });
+      closeModal();
+      toast(`Booked ${chosen.first_name} ${chosen.last_name} at ${timeLabel(minute)} ✓`);
+      bookingFor = null;
+      flashId = res.id;
+      if (date !== day) day = date;
+      history.replaceState(null, "", "/schedule?date=" + day);
+      load();
+    } catch (ex) { $("bookError").textContent = ex.message; }
+  });
+}
+
+// ---------- appointment details / actions ----------
+function openDetail(a) {
+  if (!a) return;
+  const prov = providers.find((p) => p.id === a.provider_id);
+  const start = minutesOf(a.start);
+  const btn = (label, action, cls = "") => `<button class="btn ${cls}" data-act="${action}">${label}</button>`;
+  const acts = {
+    booked: btn("Check in", "checked_in", "primary") + btn("Check in &amp; start visit", "start") + btn("Reschedule", "reschedule") + btn("No-show", "no_show") + btn("Cancel appointment", "cancelled"),
+    checked_in: btn("Start visit", "start", "primary") + btn("Undo check-in", "booked") + btn("Reschedule", "reschedule"),
+    in_visit: btn("Open visit", "start", "primary"),
+    completed: a.encounter_id ? `<a class="btn" href="/visit?id=${a.encounter_id}">View signed visit</a>` : "",
+    cancelled: btn("Restore appointment", "booked"),
+    no_show: btn("Restore appointment", "booked") + btn("Reschedule", "reschedule"),
+  }[a.status];
+  const m = openModal(`
+    <div class="modal-head"><h2>${esc(a.first_name)} ${esc(a.last_name)}</h2>
+      <span class="appt ${a.status}" style="position:static;display:inline-block;margin-right:10px;box-shadow:none">${STATUS_LABEL[a.status]}</span>
+      <button class="x" onclick="closeModal()">×</button></div>
+    <div class="modal-body"><div class="detail-grid">
+      <span class="k">When</span><span><b>${fmtDate(a.start.slice(0, 10))}, ${timeLabel(start)} to ${timeLabel(start + a.duration_min)}</b> (${a.duration_min} min)</span>
+      <span class="k">Provider</span><span>${esc(prov ? `${prov.name}, ${prov.credentials}` : a.provider_name)}</span>
+      <span class="k">Visit type</span><span>${esc(VISIT_TYPES[a.visit_type] || a.visit_type)}</span>
+      <span class="k">Reason</span><span>${esc(a.reason) || "-"}</span>
+      <span class="k">Patient</span><span>${esc(a.mrn)} · DOB ${fmtDate(a.dob)} · <a href="/patient?id=${a.patient_id}">Open chart →</a></span>
+    </div></div>
+    <div class="modal-foot" style="justify-content:flex-start"><div class="actions">${acts || '<span class="muted">Visit completed.</span>'}</div></div>`);
+  m.querySelectorAll("[data-act]").forEach((b) => b.onclick = async () => {
+    const act = b.dataset.act;
+    if (act === "reschedule") return openReschedule(a);
+    if (act === "start") {
+      const res = await api(`/api/appointments/${a.id}/start-visit`, { method: "POST" });
+      location.href = "/visit?id=" + res.encounter_id;
+      return;
+    }
+    if (act === "cancelled" && !confirm(`Cancel ${a.first_name} ${a.last_name}'s appointment?`)) return;
+    try {
+      await api(`/api/appointments/${a.id}`, { method: "PATCH", body: { status: act } });
+      closeModal();
+      toast({ checked_in: "Checked in ✓", booked: "Restored", no_show: "Marked as no-show", cancelled: "Appointment cancelled" }[act]);
+      load();
+    } catch (ex) { toast(ex.message, "error"); }
+  });
+}
+
+function openReschedule(a) {
+  const start = minutesOf(a.start);
+  const m = openModal(`
+    <div class="modal-head"><h2>Reschedule: ${esc(a.first_name)} ${esc(a.last_name)}</h2><button class="x" onclick="closeModal()">×</button></div>
+    <form id="rsForm"><div class="modal-body"><div class="form-grid">
+      <div class="f"><label>Date</label><input type="date" name="date" value="${a.start.slice(0, 10)}"></div>
+      <div class="f"><label>Time</label><select name="minute">${timeOptions(start)}</select></div>
+      <div class="f"><label>Length</label><select name="duration_min">${[15, 30, 45, 60].map((n) => `<option ${n === a.duration_min ? "selected" : ""} value="${n}">${n} min</option>`).join("")}</select></div>
+      <div class="f s6"><label>Provider</label><select name="provider_id">${providers.map((p) => `<option value="${p.id}" ${p.id === a.provider_id ? "selected" : ""}>${esc(p.name)}, ${esc(p.credentials)}</option>`).join("")}</select></div>
+    </div></div>
+    <div class="modal-foot"><span class="form-error" id="rsError"></span>
+      <button type="button" class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" type="submit">Move appointment</button></div></form>`);
+  m.querySelector("#rsForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target), minute = Number(f.get("minute")), date = f.get("date");
+    if (isPast(date, minute)) { $("rsError").textContent = "That time has already passed."; return; }
+    try {
+      await api(`/api/appointments/${a.id}`, { method: "PATCH", body: {
+        start: `${date}T${pad(Math.floor(minute / 60))}:${pad(minute % 60)}:00`, provider_id: Number(f.get("provider_id")),
+        duration_min: Number(f.get("duration_min")), status: "booked" } });
+      closeModal();
+      toast(`Moved to ${fmtDate(date)}, ${timeLabel(minute)} ✓`);
+      flashId = a.id;
+      if (date !== day) { day = date; history.replaceState(null, "", "/schedule?date=" + day); }
+      load();
+    } catch (ex) { $("rsError").textContent = ex.message; }
+  });
+}
+
+// ---------- toolbar ----------
+const go = (d) => { day = d; history.replaceState(null, "", "/schedule?date=" + day); load(); };
+$("prevBtn").onclick = () => go(addDays(day, -1));
+$("nextBtn").onclick = () => go(addDays(day, 1));
+$("todayBtn").onclick = () => go(isoDay(new Date()));
+$("datePick").onchange = (e) => e.target.value && go(e.target.value);
+$("showCancelled").onchange = render;
+$("resetBtn").onclick = async () => {
+  if (!confirm("Reset all demo data? This restores the 10 fictional patients and today's appointments, and removes anything added since.")) return;
+  await api("/api/demo/reset", { method: "POST" });
+  go(isoDay(new Date()));
+  toast("Demo data reset");
+};
+onEvent((ev) => { if (ev.type === "schedule_changed" && ev.day === day) load(); if (ev.type === "clinic_reset") load(); });
+setInterval(() => { if (day === isoDay(new Date())) render(); }, 60000);   // keep the red "now" line moving
+
+(async () => {
+  if (params.get("patient_id")) {
+    try { bookingFor = await api("/api/patients/" + params.get("patient_id")); } catch (e) {}
+  }
+  load();
+})();
+</script>
+</body>
+</html>

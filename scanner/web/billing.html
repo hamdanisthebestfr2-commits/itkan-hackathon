@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Billing</title>
+<link rel="stylesheet" href="/static/app.css">
+<style>
+  .layout { display: grid; grid-template-columns: 340px 1fr; gap: 16px; align-items: start; }
+  .list { overflow: hidden; }
+  .list .item { padding: 12px 14px; border-top: 1px solid #eef0f3; cursor: pointer; font-size: 14px; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; }
+  .list .item:first-child { border-top: 0; }
+  .list .item:hover { background: #f4f8fd; }
+  .list .item.sel { background: #e8f0fb; box-shadow: inset 4px 0 0 var(--brand); }
+  .list .item .amt { font-weight: 700; text-align: right; }
+  .list .item .sub { color: var(--muted); font-size: 12px; }
+  .st { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: .3px; white-space: nowrap; }
+  .st.review { background: var(--check-bg); color: var(--check); } .st.ready { background: var(--info-bg); color: var(--info); }
+  .st.submitted { background: #f1eaff; color: #6d3fd6; } .st.paid { background: var(--ok-bg); color: var(--ok); }
+  .st.denied { background: var(--missing-bg); color: var(--missing); } .st.appealed { background: #fff0e0; color: #b25a00; }
+  .head { padding: 16px 18px; display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; border-bottom: 1px solid var(--border); }
+  .head h2 { margin: 0; font-size: 20px; }
+  .head .meta { color: var(--muted); font-size: 13px; margin-top: 3px; }
+  .head .actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .ai-bar { padding: 10px 18px; font-size: 14px; display: flex; gap: 10px; align-items: center; border-bottom: 1px solid var(--border); }
+  .ai-bar.running { background: #eef4ff; color: #1d4f91; } .ai-bar.error { background: var(--missing-bg); color: var(--missing); }
+  .ai-bar.done { background: #f2fbf6; color: #1b6b3d; }
+  .spin { width: 16px; height: 16px; border: 3px solid #bcd3f2; border-top-color: #1d4f91; border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .body { display: grid; grid-template-columns: minmax(260px, 38%) 1fr; }
+  .note-col { padding: 16px 18px; border-right: 1px solid var(--border); }
+  .codes-col { padding: 16px 18px; min-width: 0; }
+  .sec { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); font-weight: 700; margin: 0 0 8px; display: flex; align-items: center; gap: 8px; }
+  .sec .sp { flex: 1; }
+  .note { white-space: pre-wrap; font-size: 14px; line-height: 1.6; background: #fafbfc; border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+  .note mark { background: #fff1b8; border-radius: 3px; padding: 0 1px; transition: background .2s, box-shadow .2s; }
+  .note mark.hot { background: #ffd54a; box-shadow: 0 0 0 2px #f0b400; }
+  .vit { font-size: 13px; color: var(--muted); margin-top: 10px; }
+  .code-row { display: grid; grid-template-columns: 26px 1fr auto; gap: 4px 10px; padding: 10px 8px; border-top: 1px solid #eef0f3; align-items: start; border-radius: 6px; }
+  .code-row:first-child { border-top: 0; }
+  .code-row:hover { background: #fafcff; }
+  .code-row.suggested { background: #fffcf2; } .code-row.rejected { opacity: .45; } .code-row.rejected .cd { text-decoration: line-through; }
+  .letter { width: 22px; height: 22px; border-radius: 6px; background: #eef1f5; color: #4a5565; display: grid; place-items: center; font-weight: 700; font-size: 12px; margin-top: 2px; }
+  .cd { font-weight: 700; font-family: Consolas, monospace; font-size: 14px; }
+  .desc { font-size: 14px; }
+  .ev { font-size: 13px; color: #5a4a00; font-style: italic; margin-top: 2px; }
+  .why { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .chips { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; align-items: center; }
+  .chip { border: 1px solid var(--border); background: #fff; border-radius: 999px; padding: 1px 8px; font-size: 12px; cursor: pointer; }
+  .chip.on { background: var(--brand); color: #fff; border-color: var(--brand); }
+  .chip.static { cursor: default; }
+  .conf { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; text-transform: uppercase; }
+  .conf.high { background: var(--ok-bg); color: var(--ok); } .conf.medium { background: var(--check-bg); color: var(--check); } .conf.low { background: var(--missing-bg); color: var(--missing); }
+  .src { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; background: #eef1f5; color: #4a5565; }
+  .src.ai { background: #ede7ff; color: #6d3fd6; }
+  .row-actions { display: flex; gap: 4px; }
+  .icon-btn { border: 1px solid var(--border); background: #fff; border-radius: 6px; padding: 3px 8px; cursor: pointer; font-size: 13px; }
+  .icon-btn.ok:hover { background: var(--ok-bg); border-color: var(--ok); color: var(--ok); }
+  .icon-btn.no:hover { background: var(--missing-bg); border-color: var(--missing); color: var(--missing); }
+  .money { font-weight: 700; white-space: nowrap; }
+  .add { position: relative; margin-top: 8px; }
+  .add input { width: 100%; border: 1px dashed var(--border); border-radius: 7px; padding: 7px 10px; }
+  .add .res { position: absolute; left: 0; right: 0; top: 100%; background: #fff; border: 1px solid var(--border); border-radius: 8px; z-index: 5; max-height: 240px; overflow: auto; box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+  .add .res div { padding: 7px 10px; cursor: pointer; font-size: 13px; }
+  .add .res div:hover { background: #eef5ff; }
+  .em { background: #f6f3ff; border: 1px solid #e2d9ff; border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-top: 10px; }
+  .checker { margin-top: 18px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .checker .ttl { padding: 10px 12px; background: #fafbfc; font-weight: 700; font-size: 14px; display: flex; gap: 8px; align-items: center; }
+  .issue { display: flex; gap: 10px; align-items: center; padding: 9px 12px; border-top: 1px solid #eef0f3; font-size: 14px; }
+  .issue .ic { font-size: 15px; }
+  .issue .msg { flex: 1; }
+  .issue.error { background: #fff8f7; } .issue.warning { background: #fffcf2; }
+  .clean { padding: 12px; color: var(--ok); font-weight: 600; background: var(--ok-bg); }
+  .total { display: flex; justify-content: flex-end; gap: 12px; font-size: 16px; margin-top: 12px; align-items: center; }
+  .total b { font-size: 20px; }
+  .st.closed { background: #eef1f5; color: #4a5565; }
+  .st.partial { background: #fff0e0; color: #b25a00; }
+  .eob { margin-top: 18px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .eob .ttl { padding: 10px 12px; background: #fafbfc; font-weight: 700; font-size: 14px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .eob table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .eob th { text-align: right; font-size: 11px; color: var(--muted); font-weight: 600; padding: 6px 10px; border-top: 1px solid #eef0f3; }
+  .eob th:first-child, .eob td:first-child { text-align: left; }
+  .eob td { text-align: right; padding: 8px 10px; border-top: 1px solid #eef0f3; vertical-align: top; }
+  .eob tr.denied td { background: #fff8f7; }
+  .eob tr.tot td { font-weight: 700; background: #fafbfc; }
+  .carc { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 4px; background: var(--missing-bg); color: var(--missing); }
+  .rmk { color: var(--muted); font-size: 12px; text-align: left; }
+  .fighter { margin-top: 16px; border: 2px solid #c9b8ff; border-radius: 12px; overflow: hidden; }
+  .fighter .ttl { background: linear-gradient(90deg, #6d3fd6, #8b5cf6); color: #fff; padding: 10px 14px; font-weight: 700; display: flex; gap: 8px; align-items: center; }
+  .fighter .bd { padding: 14px; font-size: 14px; }
+  .rec { display: inline-block; font-weight: 700; padding: 3px 10px; border-radius: 999px; font-size: 13px; }
+  .rec.appeal { background: #ede7ff; color: #6d3fd6; } .rec.write_off { background: #eef1f5; color: #4a5565; }
+  .rec.correct_and_resubmit { background: var(--info-bg); color: var(--info); } .rec.bill_patient { background: var(--check-bg); color: var(--check); }
+  .policy { background: #f8f9fb; border-left: 3px solid #9aa4b1; padding: 8px 10px; font-size: 13px; margin: 10px 0; }
+  .quote { font-style: italic; color: #5a4a00; background: #fff8dc; border-radius: 4px; padding: 2px 6px; display: inline-block; margin: 2px 0; }
+  textarea.letter { width: 100%; min-height: 330px; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-family: Georgia, serif; font-size: 14px; font-weight: 400; line-height: 1.5; margin-top: 8px; }
+  .outcome { padding: 12px 14px; border-radius: 10px; font-weight: 600; margin-top: 12px; display: flex; gap: 10px; align-items: center; }
+  .outcome.ok { background: var(--ok-bg); color: var(--ok); } .outcome.bad { background: var(--missing-bg); color: var(--missing); }
+  .outcome.wait { background: #eef4ff; color: #1d4f91; }
+  .pa { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; }
+  .pa input { border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; width: 150px; }
+  @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } .body { grid-template-columns: 1fr; } .note-col { border-right: 0; border-bottom: 1px solid var(--border); } }
+</style>
+</head>
+<body>
+<nav id="nav"></nav>
+<div class="page" style="max-width:1440px">
+  <div class="page-head"><h1>Billing <span class="muted" style="font-size:15px;font-weight:400">· AI coding &amp; claim checker</span></h1>
+    <div id="summary" style="display:flex;gap:6px;flex-wrap:wrap"></div></div>
+  <div class="layout">
+    <div class="panel list" id="list"><div class="empty">Loading…</div></div>
+    <div class="panel" id="detail"><div class="empty">Select a claim.</div></div>
+  </div>
+</div>
+
+<script src="/static/shell.js"></script>
+<script src="/static/patient-form.js"></script>
+<script>
+renderNav("/billing");
+const STATUS = { review: "Needs review", ready: "Ready to submit", submitted: "Submitted", paid: "Paid", partial: "Partly denied",
+  denied: "Denied", appealed: "Appealed", closed: "Closed" };
+const REC = { appeal: "Appeal it", correct_and_resubmit: "Correct & resubmit", write_off: "Write it off", bill_patient: "Bill the patient" };
+const LETTERS = "ABCDEFGHIJKL";
+const money = (n) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+let claims = [], claimId = Number(new URLSearchParams(location.search).get("claim")) || null, c = null;
+
+async function loadList() {
+  claims = await api("/api/claims");
+  const n = (s) => claims.filter((x) => x.status === s).length;
+  const collected = claims.reduce((t, x) => t + (x.paid_amount || 0), 0);
+  $("summary").innerHTML = `<span class="pill check">${n("review")} need review</span><span class="pill info">${n("ready")} ready</span>
+    <span class="pill" style="background:#f1eaff;color:#6d3fd6">${n("submitted") + n("appealed")} with insurer</span>
+    <span class="pill missing">${n("denied") + n("partial")} with denials</span>
+    <span class="pill ok">${money(collected)} collected</span>`;
+  $("list").innerHTML = claims.map((x) => `
+    <div class="item ${x.id === claimId ? "sel" : ""}" data-id="${x.id}">
+      <span><b>${esc(x.first_name)} ${esc(x.last_name)}</b></span><span class="amt">${money(x.total_charge)}</span>
+      <span class="sub">${fmtDate(x.dos)} · ${esc(x.provider_name || "")}</span>
+      <span><span class="st ${x.status}">${STATUS[x.status]}</span></span>
+      <span class="sub">${esc(x.payer_name || "No insurance")}${x.ai_status === "running" ? " · AI coding…" : ""}</span>
+      <span class="sub" style="text-align:right">${x.issues.error ? `<span style="color:var(--missing)">${x.issues.error} error${x.issues.error > 1 ? "s" : ""}</span>` : ""}</span>
+    </div>`).join("") || `<div class="empty">No claims yet. Sign a visit and its claim appears here.</div>`;
+  $("list").querySelectorAll(".item").forEach((el) => el.onclick = () => select(Number(el.dataset.id)));
+  if (!claimId && claims.length) select((claims.find((x) => x.status === "review") || claims[0]).id);
+}
+
+async function select(id) {
+  claimId = id;
+  history.replaceState(null, "", "/billing?claim=" + id);
+  $("list").querySelectorAll(".item").forEach((el) => el.classList.toggle("sel", Number(el.dataset.id) === id));
+  await loadDetail();
+}
+
+async function loadDetail() {
+  if (!claimId) return;
+  c = await api(`/api/claims/${claimId}`);
+  renderDetail();
+}
+
+// ---------- note with evidence highlights ----------
+function highlightedNote(note, items) {
+  const spans = [];
+  const lower = note.toLowerCase();
+  items.forEach((x) => {
+    const q = (x.evidence || "").trim().toLowerCase();
+    if (q.length < 3) return;
+    const at = lower.indexOf(q);
+    if (at >= 0 && !spans.some((s) => at < s.end && at + q.length > s.start)) spans.push({ start: at, end: at + q.length, code: x.code });
+  });
+  spans.sort((a, b) => a.start - b.start);
+  let out = "", pos = 0;
+  for (const s of spans) {
+    out += esc(note.slice(pos, s.start)) + `<mark data-code="${esc(s.code)}">${esc(note.slice(s.start, s.end))}</mark>`;
+    pos = s.end;
+  }
+  return out + esc(note.slice(pos));
+}
+
+function renderDetail() {
+  const p = c.patient, enc = c.encounter, editable = c.status === "review";
+  const closed = !["review", "ready"].includes(c.status);
+  const dxAccepted = c.diagnoses.filter((d) => d.status === "accepted");
+  const letterOf = (code) => { const i = dxAccepted.findIndex((d) => d.code === code); return i >= 0 ? LETTERS[i] : "?"; };
+  const errors = c.issues.filter((i) => i.level === "error").length;
+  const pending = [...c.diagnoses, ...c.procedures].filter((x) => x.status === "suggested");
+  const v = enc.vitals || {};
+  const vit = [v.bp_systolic && `BP ${v.bp_systolic}/${v.bp_diastolic}`, v.heart_rate && `HR ${v.heart_rate}`, v.spo2 && `SpO2 ${v.spo2}%`,
+    v.temperature && `Temp ${v.temperature}`, v.weight_lbs && `Wt ${v.weight_lbs} lb`].filter(Boolean).join(" · ");
+
+  const insurerBar = c.status === "submitted" && justSubmitted.has(c.id)
+    ? `<div class="ai-bar running"><div class="spin"></div><b>Sent to ${esc(c.payer ? c.payer.name : "the insurer")} through the clearinghouse. Waiting for their decision…</b></div>`
+    : c.status === "submitted" ? `<div class="ai-bar running">📨 Submitted ${fmtDate((c.submitted_at || "").slice(0, 10))}. Waiting on the insurer.</div>` : "";
+  const aiBar = closed ? insurerBar : c.ai_status === "running" || c.ai_status === "pending"
+    ? `<div class="ai-bar running"><div class="spin"></div><b>AI is reading the visit note and suggesting codes…</b></div>`
+    : c.ai_status === "error" ? `<div class="ai-bar error">⚠ ${esc(c.ai_message)}</div>`
+    : c.ai_status === "done" && pending.length ? `<div class="ai-bar done">✨ <span><b>AI suggested ${pending.length} code${pending.length > 1 ? "s" : ""}.</b>
+        Each one quotes the note. Hover a code to see its evidence. Accept or reject below.${c.ai_message ? " " + esc(c.ai_message) : ""}</span></div>` : "";
+
+  const dxRow = (d, i) => `
+    <div class="code-row ${d.status}" data-kind="dx" data-i="${i}" data-code="${esc(d.code)}">
+      <span class="letter">${d.status === "accepted" ? letterOf(d.code) : ""}</span>
+      <div><span class="cd">${esc(d.code)}</span> <span class="desc">${esc(d.description)}</span>
+        <span class="src ${d.source}">${d.source === "ai" ? "AI" : "Manual"}</span> ${d.source === "ai" ? `<span class="conf ${d.confidence}">${d.confidence}</span>` : ""}
+        ${d.evidence ? `<div class="ev">“${esc(d.evidence)}”</div>` : ""}${d.reason ? `<div class="why">${esc(d.reason)}</div>` : ""}</div>
+      ${rowActions(d, editable)}
+    </div>`;
+  const pxRow = (x, i) => `
+    <div class="code-row ${x.status}" data-kind="px" data-i="${i}" data-code="${esc(x.code)}">
+      <span class="letter" style="background:#e8f0fb;color:var(--brand)">${i + 1}</span>
+      <div><span class="cd">${esc(x.code)}</span>${(x.modifiers || []).map((m) => `<span class="cd">-${esc(m)}</span>`).join("")}
+        <span class="desc">${esc(x.description)}</span>
+        <span class="src ${x.source}">${x.source === "ai" ? "AI" : "Manual"}</span> ${x.source === "ai" ? `<span class="conf ${x.confidence}">${x.confidence}</span>` : ""}
+        <div class="chips"><span class="muted small">Billed for:</span>${dxAccepted.map((d) => `<span class="chip ${(x.dx || []).includes(d.code) ? "on" : ""} ${editable ? "" : "static"}"
+          data-link="${esc(d.code)}" title="${esc(d.code)} ${esc(d.description)}">${letterOf(d.code)} · ${esc(d.code)}</span>`).join("") || '<span class="muted small">accept a diagnosis first</span>'}</div>
+        ${x.evidence ? `<div class="ev">“${esc(x.evidence)}”</div>` : ""}${x.reason ? `<div class="why">${esc(x.reason)}</div>` : ""}</div>
+      <div style="text-align:right"><div class="money">${money(x.charge * (x.units || 1))}</div>
+        <div class="muted small">${x.units || 1} × ${money(x.charge)}</div>${rowActions(x, editable)}</div>
+    </div>`;
+
+  $("detail").innerHTML = `
+    <div class="head">
+      <div><h2>${esc(p.first_name)} ${esc(p.last_name)} <span class="st ${c.status}" style="vertical-align:middle">${STATUS[c.status]}</span></h2>
+        <div class="meta">Claim #${c.id} · Date of service ${fmtDate(enc.date)} · ${esc(c.provider ? c.provider.name : "")}
+          · <b>${c.patient_status === "new" ? "New" : "Established"} patient</b></div>
+        <div class="meta">${c.payer ? esc(c.payer.name) : "No insurance"}${p.member_id ? " · Member " + esc(p.member_id) : ""} ·
+          <a href="/patient?id=${p.id}">Chart</a> · <a href="/visit?id=${enc.id}">Visit</a></div>
+        <div class="meta"><span class="pa">Prior auth #
+          ${c.status === "review" ? `<input id="paInput" value="${esc(c.prior_auth || "")}" placeholder="if the insurer requires one"><button class="btn small" id="paSave">Save</button>`
+            : `<b>${esc(c.prior_auth || "none")}</b>`}</span></div></div>
+      <div class="actions">
+        ${editable ? `<button class="btn" id="aiBtn" ${c.ai_status === "running" ? "disabled" : ""}>✨ ${c.diagnoses.length ? "Re-run" : "Run"} AI coding</button>` : ""}
+        <a class="btn" href="/claim-form?id=${c.id}" target="_blank">Claim form (CMS-1500)</a>
+        ${c.status === "review" ? `<button class="btn primary" id="readyBtn" ${errors || pending.length ? "disabled" : ""}
+            title="${errors ? "Fix the errors below first" : pending.length ? "Review every suggestion first" : ""}">Approve claim ✓</button>` : ""}
+        ${c.status === "ready" ? `<button class="btn" id="reopenBtn">Edit codes</button>
+            <button class="btn primary" id="submitBtn">Submit to ${esc(c.payer ? c.payer.name : "insurer")} ➜</button>` : ""}
+        ${c.status === "submitted" && !justSubmitted.has(c.id) ? `<button class="btn primary" id="statusBtn">Check claim status</button>` : ""}
+        ${["denied", "partial"].includes(c.status) ? `<button class="btn" id="correctBtn" title="Reopen as a corrected claim">Correct &amp; resubmit</button>` : ""}
+      </div>
+    </div>
+    ${aiBar}
+    <div class="body">
+      <div class="note-col">
+        <div class="sec">Signed visit note</div>
+        <div class="note" id="noteBox">${highlightedNote(enc.note || "", [...c.diagnoses, ...c.procedures,
+          ...((c.appeal && c.appeal.evidence_quotes) || []).map((q) => ({ code: "appeal", evidence: q }))])}</div>
+        ${vit ? `<div class="vit">Vitals: ${esc(vit)}</div>` : ""}
+        ${c.em_rationale ? `<div class="em"><b>Why this visit level:</b> ${esc(c.em_rationale)}</div>` : ""}
+      </div>
+      <div class="codes-col">
+        <div class="sec">Diagnoses (ICD-10) <span class="sp"></span>
+          ${editable && pending.length ? `<button class="btn small" id="acceptAll">Accept all high-confidence</button>` : ""}</div>
+        <div id="dxList">${c.diagnoses.map(dxRow).join("") || '<div class="muted small" style="padding:8px">None yet.</div>'}</div>
+        ${editable ? `<div class="add"><input id="addDx" placeholder="+ Add diagnosis: search code or name (e.g. hypertension)"><div class="res" id="addDxRes" hidden></div></div>` : ""}
+        <div class="sec" style="margin-top:18px">Procedures (CPT)</div>
+        <div id="pxList">${c.procedures.map(pxRow).join("") || '<div class="muted small" style="padding:8px">None yet.</div>'}</div>
+        ${editable ? `<div class="add"><input id="addPx" placeholder="+ Add procedure: search code or name (e.g. office visit, A1c)"><div class="res" id="addPxRes" hidden></div></div>` : ""}
+        <div class="total"><span class="muted">Total charge</span><b>${money(c.total_charge)}</b></div>
+        ${editable ? `<div class="checker"><div class="ttl">🛡 Claim checker
+            <span class="muted" style="font-weight:400;font-size:13px">catches errors that get claims rejected</span></div>
+          ${c.issues.length ? c.issues.map((i, n) => `<div class="issue ${i.level}"><span class="ic">${{ error: "⛔", warning: "⚠️", info: "ℹ️" }[i.level]}</span>
+            <span class="msg">${esc(i.message)}</span>${i.fix ? `<button class="btn small" data-fix="${n}">${esc(i.fix.label || "Fix")}</button>` : ""}</div>`).join("")
+            : ""}
+          ${!c.issues.some((i) => i.level !== "info") ? `<div class="clean">✓ No problems found. This claim is clean.</div>` : ""}
+        </div>` : ""}
+        ${c.remittance ? remittanceHtml(c.remittance) : ""}
+        ${fighterHtml()}
+      </div>
+    </div>`;
+  wireDetail(editable);
+}
+
+// ---------- insurer response (like an EOB/ERA) ----------
+const justSubmitted = new Set();
+let fighting = false;
+
+function remittanceHtml(r) {
+  const openDenials = r.lines.filter((l) => l.status === "denied" && !l.written_off);
+  return `<div class="eob"><div class="ttl">📄 Insurer response <span class="muted" style="font-weight:400;font-size:13px">${esc(r.payer)} · claim ${esc(r.claim_number)} · processed ${fmtDate(r.processed)}</span></div>
+    <table><tr><th>Line</th><th>Billed</th><th>Allowed</th><th>Insurer paid</th><th>Patient owes</th></tr>
+    ${r.lines.map((l) => `<tr class="${l.status === "denied" && !l.written_off ? "denied" : ""}">
+      <td><b class="cd">${esc(l.code)}</b> ${esc(l.description)}<br>
+        ${l.status === "denied" ? (l.written_off ? `<span class="carc" style="background:#eef1f5;color:#4a5565">Written off</span>`
+          : `<span class="carc">DENIED ${esc(l.carc)}</span> <span class="small">${esc(l.carc_text)}</span>`)
+          : `<span class="badge green">Paid</span>`}
+        ${l.appeal_result ? ` <span class="badge ${l.appeal_result === "overturned" ? "green" : "red"}">Appeal ${l.appeal_result}</span>` : ""}
+        <div class="rmk">${l.remarks.map(esc).join(" · ")}</div>
+        ${l.status === "denied" && !l.written_off && !(c.appeal && c.appeal.line_code === l.code) && c.status !== "appealed"
+          ? `<button class="btn small" style="margin-top:6px;background:#6d3fd6;border-color:#6d3fd6;color:#fff" data-fight="${esc(l.code)}">🤖 Fight this denial</button>` : ""}</td>
+      <td>${money(l.charge)}</td><td>${money(l.allowed)}</td><td>${money(l.paid)}</td><td>${money(l.patient_resp)}</td></tr>`).join("")}
+    <tr class="tot"><td>Total</td><td>${money(r.total_charge)}</td><td>${money(r.total_allowed)}</td><td>${money(r.total_paid)}</td><td>${money(r.patient_resp)}</td></tr></table>
+    ${openDenials.length ? `<div class="issue error"><span class="ic">⛔</span><span class="msg"><b>${money(r.denied_amount)} denied.</b> Use the denial fighter to decide: appeal, correct, or write off.</span></div>` : ""}
+    ${r.written_off ? `<div class="issue"><span class="ic">ℹ️</span><span class="msg">${money(r.written_off)} written off.</span></div>` : ""}</div>`;
+}
+
+function fighterHtml() {
+  if (fighting) return `<div class="fighter"><div class="ttl">🤖 Denial fighter</div><div class="bd"><div class="ai-bar running" style="border:0;padding:0">
+    <div class="spin"></div><b>AI is reading the denial, the insurer's policy, and the visit note…</b></div></div></div>`;
+  const a = c.appeal;
+  if (!a) return "";
+  const line = c.remittance && c.remittance.lines.find((l) => l.code === a.line_code);
+  const payerName = c.payer ? c.payer.name : "the insurer";
+  let actions = "", outcome = "";
+  if (a.status === "draft") {
+    if (a.recommendation === "appeal") actions = `<button class="btn primary" id="appealBtn">Submit appeal to ${esc(payerName)} ➜</button>
+      <button class="btn" id="printLetter">Print letter</button>`;
+    if (a.recommendation === "write_off" || a.recommendation === "bill_patient") actions = `<button class="btn primary" data-writeoff="${esc(a.line_code)}">Write off ${money(line ? line.charge : 0)}</button>`;
+    if (a.recommendation === "correct_and_resubmit") actions = `<button class="btn primary" id="correctBtn2">Correct &amp; resubmit</button>`;
+    if (a.recommendation !== "appeal") actions += ` <button class="btn" id="appealAnyway">Draft an appeal anyway</button>`;
+  }
+  if (a.status === "submitted") outcome = `<div class="outcome wait"><div class="spin"></div>Appeal sent. ${esc(payerName)} is reviewing it…</div>`;
+  if (a.status === "approved") outcome = `<div class="outcome ok">🎉 Appeal approved: the denial was overturned and ${money(a.recovered)} was recovered.</div>`;
+  if (a.status === "upheld") outcome = `<div class="outcome bad">Appeal reviewed: the insurer upheld the denial.</div>`;
+  if (a.status === "written_off") outcome = `<div class="outcome" style="background:#eef1f5;color:#4a5565">Written off. No staff time wasted on an appeal that couldn't win.</div>`;
+  return `<div class="fighter"><div class="ttl">🤖 Denial fighter: ${esc(a.line_code)} <span style="flex:1"></span>
+      <span class="small" style="opacity:.85;font-weight:400">AI recommendation, reviewed by staff</span></div><div class="bd">
+    <p style="margin-top:0">${esc(a.plain_english)}</p>
+    ${line && line.policy ? `<div class="policy"><b>Insurer policy:</b> ${esc(line.policy)}</div>` : ""}
+    <p><span class="rec ${a.recommendation}">Recommendation: ${REC[a.recommendation]}</span>
+      ${a.recommendation === "appeal" ? `<span class="muted small"> · chance: <b>${esc(a.winnable)}</b></span>` : ""}<br>
+      <span class="small">${esc(a.recommendation_reason)}</span></p>
+    ${a.evidence_quotes && a.evidence_quotes.length ? `<div class="small"><b>Evidence from the note</b> (highlighted on the left):<br>${a.evidence_quotes.map((q) => `<span class="quote">“${esc(q)}”</span>`).join(" ")}</div>` : ""}
+    ${a.letter ? `<div style="margin-top:12px"><b class="small">Appeal letter</b> <span class="muted small">(editable)</span>
+      <textarea class="letter" id="letter" ${a.status !== "draft" ? "disabled" : ""}>${esc(a.letter)}</textarea>
+      ${a.attachments && a.attachments.length ? `<div class="small muted">Attach: ${a.attachments.map(esc).join(" · ")}</div>` : ""}</div>` : ""}
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${actions}</div>${outcome}
+  </div></div>`;
+}
+
+function wireClaimActions() {
+  if ($("submitBtn")) $("submitBtn").onclick = async () => {
+    justSubmitted.add(c.id);
+    try { await api(`/api/claims/${c.id}/submit`, { method: "POST" }); toast("Claim submitted ✓"); }
+    catch (e) { justSubmitted.delete(c.id); toast(e.message, "error"); }
+  };
+  if ($("statusBtn")) $("statusBtn").onclick = async () => { c = await api(`/api/claims/${c.id}/check-status`, { method: "POST" }); renderDetail(); loadList(); };
+  const correct = async () => {
+    if (!confirm("Reopen this claim as a corrected claim? You'll fix the codes, approve, and submit again.")) return;
+    c = await api(`/api/claims/${c.id}/correct`, { method: "POST" }); renderDetail(); loadList();
+  };
+  if ($("correctBtn")) $("correctBtn").onclick = correct;
+  if ($("correctBtn2")) $("correctBtn2").onclick = correct;
+  if ($("paSave")) $("paSave").onclick = async () => {
+    c = await api(`/api/claims/${c.id}/prior-auth`, { method: "POST", body: { number: $("paInput").value } });
+    toast("Prior authorization saved"); renderDetail(); loadList();
+  };
+  const fight = async (code) => {
+    fighting = true; renderDetail();
+    try { c = await api(`/api/claims/${c.id}/denial/analyze`, { method: "POST", body: { code } }); }
+    catch (e) { toast(e.message, "error"); }
+    fighting = false; renderDetail();
+  };
+  $("detail").querySelectorAll("[data-fight]").forEach((b) => b.onclick = () => fight(b.dataset.fight));
+  if ($("appealAnyway")) $("appealAnyway").onclick = () => {
+    c.appeal.recommendation = "appeal";
+    if (!c.appeal.letter) c.appeal.letter = `[Clinic letterhead]\n\n${new Date().toLocaleDateString()}\n\n${c.payer ? c.payer.name : "Insurer"}: Appeals Department\n\n` +
+      `RE: ${c.patient.first_name} ${c.patient.last_name}, claim ${c.remittance.claim_number}, CPT ${c.appeal.line_code}\n\n` +
+      `[Explain why the denial should be overturned.]\n\nSincerely,\n${c.provider ? c.provider.name + ", " + c.provider.credentials : ""}`;
+    renderDetail();
+  };
+  if ($("letter")) $("letter").addEventListener("change", () => api(`/api/claims/${c.id}/appeal`, { method: "PUT", body: { letter: $("letter").value } }));
+  if ($("appealBtn")) $("appealBtn").onclick = async () => {
+    try { await api(`/api/claims/${c.id}/appeal/submit`, { method: "POST", body: { letter: $("letter").value } }); toast("Appeal submitted ✓"); }
+    catch (e) { toast(e.message, "error"); }
+  };
+  if ($("printLetter")) $("printLetter").onclick = () => {
+    const w = window.open("", "_blank");
+    w.document.write(`<pre style="font:14px/1.5 Georgia,serif;white-space:pre-wrap;max-width:700px;margin:40px auto">${esc($("letter").value)}</pre>`);
+    w.document.close(); w.print();
+  };
+  $("detail").querySelectorAll("[data-writeoff]").forEach((b) => b.onclick = async () => {
+    c = await api(`/api/claims/${c.id}/write-off`, { method: "POST", body: { code: b.dataset.writeoff } });
+    toast("Written off"); renderDetail(); loadList();
+  });
+}
+
+function rowActions(x, editable) {
+  if (!editable) return "";
+  if (x.status === "suggested") return `<div class="row-actions"><button class="icon-btn ok" data-act="accept" title="Accept">✓</button><button class="icon-btn no" data-act="reject" title="Reject">✕</button></div>`;
+  if (x.status === "rejected") return `<div class="row-actions"><button class="icon-btn" data-act="accept" title="Use this code after all">Undo</button></div>`;
+  return `<div class="row-actions"><button class="icon-btn no" data-act="remove" title="Remove">Remove</button></div>`;
+}
+
+function wireDetail(editable) {
+  // hover a code -> highlight its evidence in the note
+  $("detail").querySelectorAll(".code-row").forEach((row) => {
+    row.addEventListener("mouseenter", () => {
+      const m = $("noteBox").querySelector(`mark[data-code="${CSS.escape(row.dataset.code)}"]`);
+      if (m) { m.classList.add("hot"); m.scrollIntoView({ block: "nearest", behavior: "smooth" }); }
+    });
+    row.addEventListener("mouseleave", () => $("noteBox").querySelectorAll("mark.hot").forEach((m) => m.classList.remove("hot")));
+  });
+  wireClaimActions();
+  if ($("reopenBtn")) $("reopenBtn").onclick = async () => { c = await api(`/api/claims/${c.id}/reopen`, { method: "POST" }); renderDetail(); loadList(); };
+  if (!editable) return;
+  if ($("aiBtn")) $("aiBtn").onclick = async () => {
+    if (c.diagnoses.length && !confirm("Re-run AI coding? AI suggestions will be replaced (codes you added by hand are kept).")) return;
+    await api(`/api/claims/${c.id}/ai-code`, { method: "POST" });
+  };
+  if ($("readyBtn")) $("readyBtn").onclick = async () => {
+    try { c = await api(`/api/claims/${c.id}/ready`, { method: "POST" }); toast("Claim approved ✓ Ready to submit"); renderDetail(); loadList(); }
+    catch (e) { toast(e.message, "error"); }
+  };
+  if ($("acceptAll")) $("acceptAll").onclick = () => {
+    [...c.diagnoses, ...c.procedures].forEach((x) => { if (x.status === "suggested" && x.confidence === "high") x.status = "accepted"; });
+    saveCodes("Accepted high-confidence codes");
+  };
+  $("detail").querySelectorAll("[data-act]").forEach((b) => b.onclick = () => {
+    const row = b.closest(".code-row"), list = row.dataset.kind === "dx" ? c.diagnoses : c.procedures, i = Number(row.dataset.i);
+    const act = b.dataset.act;
+    if (act === "accept") list[i].status = "accepted";
+    if (act === "reject") list[i].status = "rejected";
+    if (act === "remove") {
+      const code = list[i].code;
+      list.splice(i, 1);
+      if (row.dataset.kind === "dx") c.procedures.forEach((x) => x.dx = (x.dx || []).filter((d) => d !== code));
+    }
+    if (row.dataset.kind === "dx" && act === "reject") c.procedures.forEach((x) => x.dx = (x.dx || []).filter((d) => d !== list[i].code));
+    saveCodes();
+  });
+  $("detail").querySelectorAll(".chip[data-link]").forEach((chip) => chip.onclick = () => {
+    const x = c.procedures[Number(chip.closest(".code-row").dataset.i)], code = chip.dataset.link;
+    x.dx = (x.dx || []).includes(code) ? x.dx.filter((d) => d !== code) : [...(x.dx || []), code];
+    saveCodes();
+  });
+  $("detail").querySelectorAll("[data-fix]").forEach((b) => b.onclick = async () => {
+    const fix = c.issues[Number(b.dataset.fix)].fix;
+    if (fix.type === "edit_patient") return openPatientForm(c.patient, async () => { await loadDetail(); loadList(); });
+    if (fix.type === "prior_auth") { $("paInput").focus(); return; }
+    c = await api(`/api/claims/${c.id}/fix`, { method: "POST", body: { fix } });
+    toast("Fixed: " + (fix.label || fix.type));
+    renderDetail(); loadList();
+  });
+  setupAdd("addDx", "addDxRes", "dx");
+  setupAdd("addPx", "addPxRes", "cpt");
+}
+
+function setupAdd(inputId, resId, kind) {
+  const input = $(inputId), res = $(resId);
+  let t;
+  input.oninput = () => { clearTimeout(t); t = setTimeout(async () => {
+    const q = input.value.trim();
+    if (!q) { res.hidden = true; return; }
+    const found = await api(`/api/codes?kind=${kind}&q=` + encodeURIComponent(q));
+    res.innerHTML = found.map((f) => `<div data-code="${esc(f.code)}"><b>${esc(f.code)}</b> ${esc(f.description)}${f.charge ? ` <span class="muted">· $${f.charge}</span>` : ""}</div>`).join("")
+      || `<div class="muted">No approved code matches.</div>`;
+    res.hidden = false;
+    res.querySelectorAll("[data-code]").forEach((el) => el.onclick = () => {
+      const code = el.dataset.code;
+      if (kind === "dx") c.diagnoses.push({ code, source: "manual", status: "accepted", confidence: "high", evidence: "", reason: "" });
+      else {
+        const firstDx = c.diagnoses.find((d) => d.status === "accepted");
+        c.procedures.push({ code, source: "manual", status: "accepted", confidence: "high", evidence: "", reason: "", units: 1, modifiers: [], dx: firstDx ? [firstDx.code] : [] });
+      }
+      saveCodes(`Added ${code}`);
+    });
+  }, 150); };
+  input.onblur = () => setTimeout(() => res.hidden = true, 200);
+}
+
+async function saveCodes(msg) {
+  try {
+    c = await api(`/api/claims/${c.id}/codes`, { method: "PUT", body: { diagnoses: c.diagnoses, procedures: c.procedures } });
+    if (msg) toast(msg);
+    renderDetail(); loadList();
+  } catch (e) { toast(e.message, "error"); loadDetail(); }
+}
+
+onEvent((ev) => {
+  if (ev.type === "claim_updated" || ev.type === "claim_created") {
+    if (ev.event === "adjudicated" && justSubmitted.has(ev.claim_id)) {
+      justSubmitted.delete(ev.claim_id);
+      if (ev.claim_id === claimId) setTimeout(() => toast("The insurer responded"), 300);
+    }
+    loadList();
+    if (ev.claim_id === claimId) loadDetail();
+  }
+  if (ev.type === "clinic_reset") { claimId = null; loadList(); $("detail").innerHTML = '<div class="empty">Select a claim.</div>'; }
+});
+loadList().then(() => claimId && loadDetail());
+</script>
+</body>
+</html>

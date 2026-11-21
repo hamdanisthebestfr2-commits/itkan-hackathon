@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Visit</title>
+<link rel="stylesheet" href="/static/app.css">
+<style>
+  .visit-head { display: flex; gap: 16px; align-items: center; padding: 16px 20px; flex-wrap: wrap; }
+  .avatar { width: 52px; height: 52px; border-radius: 12px; background: #5b6ee1; color: #fff; display: grid; place-items: center; font-size: 20px; font-weight: 700; }
+  .visit-head h1 { margin: 0; font-size: 22px; }
+  .visit-head .meta { color: var(--muted); font-size: 14px; }
+  .visit-head .right { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .allergy-bar { background: var(--missing-bg); color: var(--missing); padding: 8px 20px; font-weight: 600; font-size: 14px; border-top: 1px solid #f5c6c1; }
+  .allergy-bar.none { background: #f6f8fa; color: var(--muted); font-weight: 400; border-top: 1px solid var(--border); }
+  .signed-bar { background: var(--ok-bg); color: var(--ok); padding: 10px 20px; font-weight: 600; border-top: 1px solid #bfe6cd; }
+  .cols { display: grid; grid-template-columns: 1fr 340px; gap: 16px; margin-top: 16px; align-items: start; }
+  .card { padding: 14px 16px; margin-bottom: 16px; }
+  .card h3 { margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+  .card h3 .sp { flex: 1; }
+  .vgrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+  .vgrid .f { display: flex; flex-direction: column; gap: 4px; }
+  .vgrid label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .3px; }
+  .vgrid input, .vgrid select { border: 1px solid var(--border); border-radius: 7px; padding: 7px 8px; width: 100%; font-size: 15px; }
+  .vgrid .pair { display: flex; gap: 4px; align-items: center; }
+  .vgrid input.warn { border-color: #e0a030; background: #fffaf0; } .vgrid input.bad { border-color: #e5484d; background: #fff6f5; }
+  .bmi { font-size: 13px; color: var(--muted); margin-top: 8px; }
+  textarea.note { width: 100%; min-height: 230px; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-family: inherit; font-size: 15px; line-height: 1.55; resize: vertical; }
+  textarea.note:focus { outline: 2px solid var(--brand); border-color: var(--brand); }
+  .note-tools { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; align-items: center; }
+  .interim { color: var(--muted); font-style: italic; min-height: 20px; font-size: 14px; margin-top: 4px; }
+  .rec { background: #e5484d !important; border-color: #e5484d !important; color: #fff !important; animation: pulse 1.2s infinite; }
+  @keyframes pulse { 50% { opacity: .75; } }
+  .saved { font-size: 12px; color: var(--muted); margin-left: auto; }
+  .rx-item { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid #eef0f3; font-size: 14px; }
+  .rx-item:first-child { border-top: 0; }
+  .rx-item .drug { flex: 1; }
+  .side .kv { display: grid; grid-template-columns: 96px 1fr; gap: 6px 10px; font-size: 14px; }
+  .side .kv .k { color: var(--muted); }
+  .past { border-top: 1px solid #eef0f3; padding: 8px 0; font-size: 13px; }
+  .locked textarea, .locked input, .locked select { background: #f8f9fb; }
+  .spin-inline { display: inline-block; width: 12px; height: 12px; border: 2px solid #9fd5b4; border-top-color: var(--ok); border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -1px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (max-width: 1000px) { .cols { grid-template-columns: 1fr; } .vgrid { grid-template-columns: repeat(3, 1fr); } }
+</style>
+</head>
+<body>
+<nav id="nav"></nav>
+<div class="page" id="page"><div class="empty">Loading visit…</div></div>
+
+<script src="/static/shell.js"></script>
+<script src="/static/rx-form.js"></script>
+<script>
+renderNav("/schedule");
+const encId = Number(new URLSearchParams(location.search).get("id"));
+let enc = null, saveTimer = null, recognition = null;
+
+const VFIELDS = [  // key, label, flag(value) -> "" | "warn" | "bad"
+  ["bp_systolic", "BP systolic", (v) => v >= 180 ? "bad" : v >= 140 ? "warn" : ""],
+  ["bp_diastolic", "BP diastolic", (v) => v >= 120 ? "bad" : v >= 90 ? "warn" : ""],
+  ["heart_rate", "Heart rate", (v) => v > 150 || v < 40 ? "bad" : v > 120 || v < 50 ? "warn" : ""],
+  ["respiratory_rate", "Resp. rate", (v) => v > 30 || v < 8 ? "warn" : ""],
+  ["spo2", "SpO2 %", (v) => v < 90 ? "bad" : v < 94 ? "warn" : ""],
+  ["blood_glucose", "Glucose", (v) => v >= 300 || v < 54 ? "bad" : v >= 200 || v < 70 ? "warn" : ""],
+  ["temperature", "Temp", (v) => v >= 103 ? "bad" : v >= 100.4 ? "warn" : ""],
+  ["weight_lbs", "Weight (lbs)", () => ""],
+  ["height_ft", "Height ft", () => ""],
+  ["height_in", "Height in", () => ""],
+];
+
+async function load() {
+  try { enc = await api(`/api/encounters/${encId}`); }
+  catch (e) { $("page").innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  render();
+}
+
+function render() {
+  const p = enc.patient, locked = enc.status === "signed";
+  document.title = `Visit: ${p.first_name} ${p.last_name}`;
+  const allergies = (p.allergies || "").split(";").map((a) => a.trim()).filter(Boolean);
+  const appt = p.appointments.find((a) => a.id === enc.appointment_id);
+  const lv = enc.latest_vitals;
+  const hasVitals = Object.values(enc.vitals || {}).some((v) => v !== "" && v !== null);
+
+  $("page").innerHTML = `
+  <div style="margin-bottom:10px" class="small"><a href="/schedule?date=${enc.date}">← Schedule</a> · <a href="/patient?id=${p.id}">Patient chart</a></div>
+  <div class="panel ${locked ? "locked" : ""}">
+    <div class="visit-head">
+      <div class="avatar">${esc(p.first_name[0] + p.last_name[0])}</div>
+      <div><h1>${esc(p.first_name)} ${esc(p.last_name)}</h1>
+        <div class="meta">${esc(p.mrn)} · ${p.dob ? age(p.dob) + " yrs" : ""} ${SEX[p.sex] || ""} · ${esc(p.payer_name || "No insurance on file")}</div>
+        <div class="meta"><b>${fmtDate(enc.date)}</b> · ${esc(enc.provider_name || "")}${appt ? " · " + esc(appt.reason) : " · Walk-in"}</div></div>
+      <div class="right">
+        ${locked ? '<span class="badge green" style="font-size:13px">✓ Signed</span>'
+                 : '<span class="badge blue" style="font-size:13px">Visit in progress</span><button class="btn primary" id="signBtn">Sign &amp; complete visit</button>'}
+      </div>
+    </div>
+    <div class="allergy-bar ${allergies.length ? "" : "none"}">${allergies.length ? "⚠ Allergies: " + allergies.map(esc).join(", ") : "No known drug allergies (NKDA)"}</div>
+    ${locked ? `<div class="signed-bar" id="signedBar">This visit is signed and locked.</div>` : ""}
+  </div>
+
+  <div class="cols ${locked ? "locked" : ""}">
+    <div>
+      <div class="panel card">
+        <h3>Vitals <span class="sp"></span>
+          ${!locked && !hasVitals && lv.vitals ? `<button class="btn small" id="copyVitals">Use vitals from ${esc(lv.type)} · ${fmtDate(lv.date)}</button>` : ""}</h3>
+        <div class="vgrid">${VFIELDS.map(([k, label]) => `<div class="f"><label for="v_${k}">${label}</label>
+          <input id="v_${k}" data-k="${k}" inputmode="decimal" value="${esc(enc.vitals[k] ?? "")}" ${locked ? "disabled" : ""}></div>`).join("")}
+          <div class="f"><label for="v_temperature_unit">Temp unit</label><select id="v_temperature_unit" data-k="temperature_unit" ${locked ? "disabled" : ""}>
+            ${["F", "C"].map((u) => `<option ${(enc.vitals.temperature_unit || "F") === u ? "selected" : ""}>${u}</option>`).join("")}</select></div>
+        </div>
+        <div class="bmi" id="bmi"></div>
+      </div>
+
+      <div class="panel card">
+        <h3>Visit note</h3>
+        ${locked ? "" : `<div class="note-tools">
+          <button class="btn small" id="dictateBtn">🎤 Dictate</button>
+          <button class="btn small" id="soapBtn">Insert SOAP template</button>
+          <button class="btn small" id="vitalsLineBtn">Insert vitals</button>
+          <span class="saved" id="saved"></span></div>`}
+        <textarea class="note" id="note" ${locked ? "disabled" : ""} placeholder="Type or dictate the visit note: symptoms, exam, assessment, plan…">${esc(enc.note || "")}</textarea>
+        <div class="interim" id="interim"></div>
+      </div>
+
+      <div class="panel card">
+        <h3>Prescriptions this visit</h3>
+        <div id="rxList"></div>
+        ${locked ? "" : `<div style="border-top:1px solid var(--border);margin-top:8px;padding-top:12px"><div id="rxForm"></div></div>`}
+      </div>
+    </div>
+
+    <div class="side">
+      <div class="panel card"><h3>Patient summary</h3><div class="kv">
+        <span class="k">Conditions</span><span>${esc(p.conditions) || "-"}</span>
+        <span class="k">Medications</span><span>${esc(p.medications) || "-"}</span>
+        <span class="k">Pharmacy</span><span>${esc(p.pharmacy_name) || "-"}</span>
+        <span class="k">Insurance</span><span>${esc(p.payer_name || "-")}${p.member_id ? `<br><span class="muted small">${esc(p.member_id)}</span>` : ""}</span>
+      </div></div>
+      <div class="panel card"><h3>Previous visits</h3>
+        ${p.encounters.filter((e) => e.id !== enc.id).slice(0, 4).map((e) => `<div class="past"><b>${fmtDate(e.date)}</b>
+          <span class="badge ${e.type === "screening" ? "scan" : "blue"}">${esc(e.type)}</span>
+          <div class="muted">${esc((e.note || "").slice(0, 160))}${(e.note || "").length > 160 ? "…" : ""}</div></div>`).join("") || '<span class="muted small">First visit.</span>'}
+      </div>
+      <div class="panel card"><h3>Medication history</h3>
+        ${p.prescriptions.filter((r) => r.encounter_id !== enc.id).slice(0, 5).map((r) => `<div class="past"><b>${esc(r.drug)}</b> ${esc(r.strength)}
+          <div class="muted">${fmtDate(r.sent_at)} · ${esc(r.pharmacy_name)}</div></div>`).join("") || '<span class="muted small">None.</span>'}
+      </div>
+    </div>
+  </div>`;
+
+  renderRx();
+  updateVitalFlags();
+  if (locked) { showClaimStatus(); return; }
+
+  document.querySelectorAll("[data-k]").forEach((el) => el.addEventListener("input", () => { updateVitalFlags(); queueSave(); }));
+  $("note").addEventListener("input", queueSave);
+  if ($("copyVitals")) $("copyVitals").onclick = () => {
+    Object.entries(lv.vitals).forEach(([k, v]) => { const el = document.querySelector(`[data-k="${k}"]`); if (el) el.value = v; });
+    $("copyVitals").remove(); updateVitalFlags(); queueSave();
+    toast(`Vitals copied from ${lv.type} (${fmtDate(lv.date)})`);
+  };
+  $("soapBtn").onclick = () => insertNote("S: \nO: \nA: \nP: ");
+  $("vitalsLineBtn").onclick = () => insertNote(vitalsSentence());
+  $("signBtn").onclick = sign;
+  setupDictation();
+  renderRxForm($("rxForm"), { patient: p, encounterId: enc.id, providerId: enc.provider_id, onSent: refreshRx });
+}
+
+function currentVitals() {
+  const v = {};
+  document.querySelectorAll("[data-k]").forEach((el) => { if (el.value.trim() !== "") v[el.dataset.k] = el.value.trim(); });
+  return v;
+}
+function updateVitalFlags() {
+  for (const [k, , flag] of VFIELDS) {
+    const el = $("v_" + k), n = parseFloat(el.value);
+    el.className = isNaN(n) ? "" : flag(n);
+  }
+  const v = currentVitals(), inches = (+v.height_ft || 0) * 12 + (+v.height_in || 0);
+  $("bmi").textContent = inches && v.weight_lbs ? `BMI ${(703 * v.weight_lbs / inches / inches).toFixed(1)}` : "";
+}
+function vitalsSentence() {
+  const v = currentVitals(), parts = [];
+  if (v.bp_systolic) parts.push(`BP ${v.bp_systolic}/${v.bp_diastolic || "?"}`);
+  if (v.heart_rate) parts.push(`HR ${v.heart_rate}`);
+  if (v.respiratory_rate) parts.push(`RR ${v.respiratory_rate}`);
+  if (v.spo2) parts.push(`SpO2 ${v.spo2}%`);
+  if (v.temperature) parts.push(`Temp ${v.temperature} ${v.temperature_unit || "F"}`);
+  if (v.blood_glucose) parts.push(`glucose ${v.blood_glucose}`);
+  if (v.weight_lbs) parts.push(`weight ${v.weight_lbs} lb`);
+  return parts.length ? `Vitals: ${parts.join(", ")}.` : "";
+}
+function insertNote(text) {
+  if (!text) return;
+  const ta = $("note"), pos = ta.selectionStart ?? ta.value.length;
+  const before = ta.value.slice(0, pos), after = ta.value.slice(pos);
+  const sep = before && !before.endsWith("\n") ? "\n" : "";
+  ta.value = before + sep + text + after;
+  ta.focus(); ta.selectionStart = ta.selectionEnd = (before + sep + text).length;
+  queueSave();
+}
+
+// ---------- autosave ----------
+function setSaved(text) { const el = $("saved"); if (el) el.textContent = text; }
+function queueSave() {
+  setSaved("Saving…");
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(save, 700);
+}
+async function save() {
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  if (!enc || enc.status === "signed") return;
+  try {
+    await api(`/api/encounters/${encId}`, { method: "PUT", body: { note: $("note").value, vitals: currentVitals() } });
+    setSaved("Saved ✓ " + new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }));
+  } catch (e) { setSaved("Not saved: " + e.message); }
+}
+window.addEventListener("beforeunload", () => { if (saveTimer) save(); });
+
+// ---------- dictation (browser speech recognition) ----------
+function setupDictation() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const btn = $("dictateBtn");
+  if (!SR) { btn.disabled = true; btn.title = "Voice dictation needs Chrome or Edge"; return; }
+  btn.onclick = () => {
+    if (recognition) { recognition.stop(); return; }
+    recognition = new SR();
+    recognition.continuous = true; recognition.interimResults = true; recognition.lang = "en-US";
+    recognition.onresult = (e) => {
+      let interim = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) {
+          const ta = $("note"), needsSpace = ta.value && !/[\s\n]$/.test(ta.value);
+          let text = t.trim();
+          if (!ta.value || /[.!?]\s*$/.test(ta.value) || ta.value.endsWith("\n")) text = text.charAt(0).toUpperCase() + text.slice(1);
+          ta.value += (needsSpace ? " " : "") + text;
+          queueSave();
+        } else interim += t;
+      }
+      $("interim").textContent = interim;
+    };
+    recognition.onerror = (e) => { toast("Dictation: " + (e.error === "not-allowed" ? "microphone permission denied" : e.error), "error"); };
+    recognition.onend = () => { recognition = null; btn.classList.remove("rec"); btn.textContent = "🎤 Dictate"; $("interim").textContent = ""; };
+    recognition.start();
+    btn.classList.add("rec"); btn.textContent = "● Listening… click to stop";
+  };
+}
+
+// ---------- prescriptions ----------
+function renderRx() {
+  $("rxList").innerHTML = enc.prescriptions.length ? enc.prescriptions.map((r) => `
+    <div class="rx-item"><div class="drug"><b>${esc(r.drug)}</b> ${esc(r.strength)}<br><span class="muted small">${esc(r.sig)} · qty ${r.quantity} · ${r.refills} refills</span></div>
+      <div class="small" style="text-align:right">${esc(r.pharmacy_name)}<br>${rxStatusBadge(r)}</div></div>`).join("")
+    : '<span class="muted small">No prescriptions yet.</span>';
+}
+async function refreshRx() {
+  const fresh = await api(`/api/encounters/${encId}`);
+  enc.prescriptions = fresh.prescriptions;
+  renderRx();
+}
+
+// ---------- sign ----------
+async function sign() {
+  if (!$("note").value.trim()) { toast("Write a visit note before signing", "error"); $("note").focus(); return; }
+  if (!confirm("Sign and complete this visit? The note and vitals will be locked.")) return;
+  await save();
+  await api(`/api/encounters/${encId}`, { method: "PUT", body: { status: "signed" } });
+  toast("Visit signed ✓");
+  load();
+}
+
+// After signing: the claim is created and AI coding runs in the background.
+async function showClaimStatus() {
+  const bar = $("signedBar");
+  if (!bar) return;
+  const st = await api(`/api/encounters/${encId}/claim`);
+  if (!st.claim_id) { bar.textContent = "This visit is signed and locked."; return; }
+  const link = `<a class="btn small" href="/billing?claim=${st.claim_id}" style="margin-left:10px">Open claim →</a>`;
+  const later = { ready: "Claim approved and ready to submit.", submitted: "Claim is with the insurer.",
+    appealed: "Appeal is with the insurer.", paid: "Claim paid ✓", partial: "Claim has a denial to resolve.",
+    denied: "Claim was denied: use the denial fighter.", closed: "Claim closed." }[st.status];
+  bar.innerHTML = later ? `✓ Signed. ${later} ${link}`
+    : st.ai_status === "done" ? `✓ Signed. ✨ AI billing codes are ready for review. ${link}`
+    : st.ai_status === "error" ? `✓ Signed. AI coding hit a problem. Code it by hand. ${link}`
+    : `✓ Signed. <span class="spin-inline"></span> AI is reading the note and suggesting billing codes… ${link}`;
+}
+
+onEvent((ev) => {
+  if ((ev.type === "rx_updated" || ev.type === "rx_sent") && ev.rx.encounter_id === encId) refreshRx();
+  if ((ev.type === "claim_updated" || ev.type === "claim_created") && enc && enc.status === "signed") showClaimStatus();
+});
+load();
+</script>
+</body>
+</html>

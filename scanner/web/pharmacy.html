@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pharmacy inbox</title>
+<link rel="stylesheet" href="/static/app.css">
+<style>
+  .sim { background: #fff8e6; border: 1px solid #f3dca4; color: #7a5300; padding: 8px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 14px; }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tab { border: 1px solid var(--border); background: #fff; border-radius: 999px; padding: 6px 14px; cursor: pointer; font-size: 14px; }
+  .tab.active { background: #0b2545; color: #fff; border-color: #0b2545; }
+  .counts { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+  .rx-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 14px; }
+  .rx-card { padding: 0; overflow: hidden; border-left: 5px solid #5b8def; }
+  .rx-card.received { border-left-color: #e0a030; } .rx-card.filled, .rx-card.ready { border-left-color: #1f8a4c; }
+  .rx-card.new { animation: arrive 2.5s ease-out; }
+  @keyframes arrive { 0% { box-shadow: 0 0 0 5px #13b38a; transform: translateY(-6px); } 100% { box-shadow: none; transform: none; } }
+  .rx-top { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #fafbfc; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .rx-top .sp { flex: 1; }
+  .rx-body { padding: 12px 14px; display: grid; grid-template-columns: 92px 1fr; gap: 5px 10px; font-size: 14px; }
+  .rx-body .k { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .3px; padding-top: 2px; }
+  .rx-drug { font-size: 17px; font-weight: 700; }
+  .rx-foot { padding: 10px 14px; border-top: 1px solid #eef0f3; display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
+  .rx-foot .sp { flex: 1; font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<nav id="nav"></nav>
+<div class="page">
+  <div class="page-head"><h1>Pharmacy inbox <span class="muted" style="font-size:15px;font-weight:400">· incoming e-prescriptions</span></h1>
+    <span id="emailState" class="small"></span></div>
+  <div class="sim">🧪 <b>Simulated pharmacy (demo).</b> This page plays the role of the pharmacy's system. In a real deployment,
+    prescriptions travel over the Surescripts e-prescribing network. All pharmacies and patients here are fictional.</div>
+  <div class="tabs" id="tabs"></div>
+  <div class="counts" id="counts"></div>
+  <div class="rx-grid" id="list"><div class="empty">Loading…</div></div>
+</div>
+
+<script src="/static/shell.js"></script>
+<script src="/static/rx-form.js"></script>
+<script>
+renderNav("/pharmacy");
+let pharmacyId = Number(new URLSearchParams(location.search).get("pharmacy")) || null;
+let items = [], fresh = new Set();
+const NEXT = { sent: ["received", "Mark received"], received: ["filled", "Mark filled"], filled: ["ready", "Ready for pickup"] };
+
+async function load() {
+  const ref = await reference();
+  $("tabs").innerHTML = [`<button class="tab ${!pharmacyId ? "active" : ""}" data-id="">All pharmacies</button>`,
+    ...ref.pharmacies.map((p) => `<button class="tab ${p.id === pharmacyId ? "active" : ""}" data-id="${p.id}">${esc(p.name)}</button>`)].join("");
+  $("tabs").querySelectorAll(".tab").forEach((t) => t.onclick = () => {
+    pharmacyId = Number(t.dataset.id) || null;
+    history.replaceState(null, "", "/pharmacy" + (pharmacyId ? "?pharmacy=" + pharmacyId : ""));
+    load();
+  });
+  const st = await api("/api/email/status");
+  $("emailState").innerHTML = st.enabled
+    ? `<span class="badge green">✉ Email copies on</span> <span class="muted">→ ${esc(st.to)}</span> <button class="btn small" id="testEmail">Send test email</button>`
+    : `<span class="badge" title="Add SMTP_USER and SMTP_PASS to scanner/.env, then restart">✉ Email not set up</span>`;
+  if ($("testEmail")) $("testEmail").onclick = async () => {
+    $("testEmail").disabled = true;
+    try { const r = await api("/api/email/test", { method: "POST" }); toast("Test email sent to " + r.to + " ✓"); }
+    catch (e) { toast(e.message, "error"); }
+    finally { $("testEmail").disabled = false; }
+  };
+  items = await api("/api/pharmacy/inbox" + (pharmacyId ? "?pharmacy_id=" + pharmacyId : ""));
+  render();
+}
+
+function render() {
+  const n = (s) => items.filter((r) => r.status === s).length;
+  $("counts").innerHTML = `<span class="pill info">${n("sent")} new</span><span class="pill check">${n("received")} in progress</span>
+    <span class="pill ok">${n("filled") + n("ready")} filled</span>`;
+  $("list").innerHTML = items.map((r) => `
+    <div class="panel rx-card ${r.status} ${fresh.has(r.id) ? "new" : ""}" data-id="${r.id}">
+      <div class="rx-top"><b>Rx #${r.id}</b> <span class="muted">→ ${esc(r.pharmacy_name)}</span><span class="sp"></span>
+        <span class="muted">${fmtDateTime(r.sent_at)}</span> ${rxStatusBadge(r)}</div>
+      <div class="rx-body">
+        <span class="k">Medication</span><span><span class="rx-drug">${esc(r.drug)}</span> ${esc(r.strength)}</span>
+        <span class="k">Directions</span><span>${esc(r.sig)}</span>
+        <span class="k">Qty / refills</span><span>${r.quantity} · ${r.refills} refill${r.refills === 1 ? "" : "s"}</span>
+        <span class="k">Patient</span><span><b>${esc(r.first_name)} ${esc(r.last_name)}</b> · DOB ${fmtDate(r.dob)} · ${esc(r.mrn)}</span>
+        <span class="k">Allergies</span><span>${r.allergies ? `<span class="badge red">${esc(r.allergies)}</span>` : "None reported"}</span>
+        <span class="k">Prescriber</span><span>${esc(r.provider_name || "")}${r.provider_credentials ? ", " + esc(r.provider_credentials) : ""}</span>
+      </div>
+      <div class="rx-foot"><span class="sp">${r.status === "ready" ? "Patient notified: ready for pickup" : ""}</span>
+        ${NEXT[r.status] ? `<button class="btn ${r.status === "sent" ? "primary" : ""}" data-next="${NEXT[r.status][0]}">${NEXT[r.status][1]}</button>` : ""}</div>
+    </div>`).join("") || `<div class="empty">No prescriptions yet. Send one from a visit or a patient chart.</div>`;
+  $("list").querySelectorAll("[data-next]").forEach((b) => b.onclick = async () => {
+    const id = Number(b.closest(".rx-card").dataset.id);
+    await api(`/api/prescriptions/${id}`, { method: "PATCH", body: { status: b.dataset.next } });
+  });
+}
+
+function chime() {
+  try {
+    const a = new AudioContext();
+    [660, 880].forEach((f, i) => { const o = a.createOscillator(), g = a.createGain();
+      o.frequency.value = f; o.connect(g); g.connect(a.destination); g.gain.value = 0.12;
+      o.start(a.currentTime + i * 0.15); o.stop(a.currentTime + i * 0.15 + 0.12); });
+  } catch (e) {}
+}
+
+onEvent((ev) => {
+  if (ev.type === "rx_sent" && (!pharmacyId || ev.rx.pharmacy_id === pharmacyId)) {
+    fresh.add(ev.rx.id); items.unshift(ev.rx); render(); chime();
+    toast(`New e-prescription: ${ev.rx.drug} for ${ev.rx.first_name} ${ev.rx.last_name}`);
+  }
+  if (ev.type === "rx_updated") {
+    const i = items.findIndex((r) => r.id === ev.rx.id);
+    if (i >= 0) { items[i] = { ...items[i], ...ev.rx }; fresh.delete(ev.rx.id); render(); }
+  }
+  if (ev.type === "clinic_reset") load();
+});
+load();
+</script>
+</body>
+</html>

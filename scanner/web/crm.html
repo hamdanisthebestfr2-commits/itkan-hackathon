@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clinic CRM</title>
+<link rel="stylesheet" href="/static/app.css">
+<style>
+  .topbar { background: #032d60; }
+  .org { font-size: 12px; background: rgba(255,255,255,.15); padding: 3px 10px; border-radius: 999px; }
+  .stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; padding: 16px 16px 0; }
+  .stat { padding: 12px 14px; }
+  .stat .num { font-size: 26px; font-weight: 700; }
+  .stat .lbl { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+  .main { display: grid; grid-template-columns: minmax(380px, 42%) 1fr; gap: 16px; padding: 16px; height: calc(100% - 52px - 98px); }
+  .list { display: flex; flex-direction: column; min-height: 0; }
+  .list-head { padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: center; }
+  .list-head h2 { font-size: 16px; margin: 0; flex: 1; }
+  .list-head input { border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; width: 200px; }
+  .table-wrap { overflow: auto; flex: 1; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 8px 12px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: #fafbfc; }
+  td { padding: 9px 12px; border-bottom: 1px solid #eef0f3; }
+  tr.row { cursor: pointer; }
+  tr.row:hover { background: #f4f8fd; }
+  tr.row.sel { background: #e8f0fb; }
+  tr.row.new { animation: flash 2.4s ease-out; }
+  @keyframes flash { 0% { background: #c9f0d6; } 100% { background: transparent; } }
+  .name { color: var(--brand); font-weight: 600; }
+  .detail { overflow: auto; min-height: 0; }
+  .rec-head { padding: 16px 18px; border-bottom: 1px solid var(--border); display: flex; gap: 14px; align-items: center; }
+  .avatar { width: 44px; height: 44px; border-radius: 8px; background: #7f8de1; color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 18px; }
+  .rec-head h2 { margin: 0; font-size: 20px; }
+  .rec-head .type { font-size: 12px; color: var(--muted); }
+  .rec-body { padding: 4px 18px 18px; }
+  .group-title { margin: 18px 0 8px; font-size: 14px; font-weight: 700; padding-bottom: 6px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 4px 18px; }
+  .kv { padding: 6px 0; border-bottom: 1px dotted #e4e7ec; min-height: 50px; }
+  .kv .k { font-size: 12px; color: var(--muted); }
+  .kv .api { font-size: 10px; color: #9aa4b1; font-family: Consolas, monospace; }
+  .kv .v { font-size: 15px; min-height: 22px; }
+  .kv.typing .v { color: var(--brand); }
+  .kv.filled { animation: fillflash 1.2s ease-out; }
+  @keyframes fillflash { 0% { background: #dff3e6; } 100% { background: transparent; } }
+  .source img { max-width: 260px; border: 1px solid var(--border); border-radius: 6px; cursor: zoom-in; }
+  .history td, .history th { font-size: 13px; padding: 6px 8px; }
+  .placeholder { display: grid; place-items: center; height: 100%; color: var(--muted); text-align: center; padding: 40px; }
+  .incoming { background: var(--ok); color: #fff; font-size: 12px; padding: 2px 10px; border-radius: 999px; font-weight: 600; }
+  .lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.8); display: grid; place-items: center; z-index: 10; }
+  .lightbox img { max-width: 92vw; max-height: 92vh; }
+  @media (max-width: 1000px) { .stats { grid-template-columns: repeat(3, 1fr); } .main { grid-template-columns: 1fr; height: auto; } }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="logo">Clinic CRM</span>
+  <span class="org">Mock org · Contact + Health_Screening__c</span>
+  <span class="spacer"></span>
+  <a href="/" target="scanner">Open Scanner ↗</a>
+  <button class="btn small" id="resetBtn" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.4)">Reset demo data</button>
+</div>
+
+<div class="stats">
+  <div class="panel stat"><div class="num" id="sCards">0</div><div class="lbl">Cards processed</div></div>
+  <div class="panel stat"><div class="num" id="sPatients">0</div><div class="lbl">Patients</div></div>
+  <div class="panel stat"><div class="num" id="sAvg">–</div><div class="lbl">Avg seconds / card</div></div>
+  <div class="panel stat"><div class="num" id="sAuto">–</div><div class="lbl">Fields auto-accepted</div></div>
+  <div class="panel stat"><div class="num" id="sFollow">0</div><div class="lbl">Need follow-up</div></div>
+  <div class="panel stat"><div class="num" id="sSaved">0</div><div class="lbl">Minutes saved (est.)</div></div>
+</div>
+
+<div class="main">
+  <div class="panel list">
+    <div class="list-head"><h2>Patients</h2><input id="search" placeholder="Search name or phone"></div>
+    <div class="table-wrap">
+      <table><thead><tr><th>Name</th><th>Phone</th><th>Last BP</th><th>SpO2</th><th>Status</th></tr></thead>
+      <tbody id="rows"></tbody></table>
+    </div>
+  </div>
+  <div class="panel detail" id="detail">
+    <div class="placeholder"><div><div style="font-size:42px">📋</div><b>Select a patient</b><br>New scans appear here automatically.</div></div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+let selected = null;
+
+const fmtDate = (iso) => iso ? new Date(iso + "T00:00").toLocaleDateString("en-US") : "";
+
+async function loadStats() {
+  const s = await (await fetch("/api/crm/stats")).json();
+  $("sCards").textContent = s.cards; $("sPatients").textContent = s.patients;
+  $("sAvg").textContent = s.cards ? s.avg_seconds : "–";
+  $("sAuto").textContent = s.auto_rate === null ? "–" : s.auto_rate + "%";
+  $("sFollow").textContent = s.follow_ups; $("sSaved").textContent = Math.max(0, s.minutes_saved);
+}
+
+async function loadList(highlightId) {
+  const rows = await (await fetch("/api/crm/contacts?q=" + encodeURIComponent($("search").value))).json();
+  $("rows").innerHTML = rows.map((r) => `
+    <tr class="row ${r.Id === selected ? "sel" : ""} ${r.Id === highlightId ? "new" : ""}" data-id="${r.Id}">
+      <td><span class="name">${esc(r.FirstName)} ${esc(r.LastName)}</span><br><span class="muted" style="font-size:12px">${r.Screenings} screening${r.Screenings === 1 ? "" : "s"}</span></td>
+      <td>${esc(r.Phone)}</td>
+      <td>${r.Systolic_BP__c ? `${r.Systolic_BP__c}/${r.Diastolic_BP__c ?? ""}` : ""}</td>
+      <td>${r.SpO2__c ? r.SpO2__c + "%" : ""}</td>
+      <td>${r.Needs_Follow_Up__c ? '<span class="pill check">Follow-up</span>' : '<span class="pill ok">OK</span>'}</td>
+    </tr>`).join("") || `<tr><td colspan="5" class="muted" style="padding:30px;text-align:center">No patients yet. Scan a card!</td></tr>`;
+  $("rows").querySelectorAll("tr.row").forEach((tr) => tr.onclick = () => openContact(tr.dataset.id));
+}
+$("search").oninput = () => loadList();
+
+// Field layout for the record page: [label, API name, getter]
+const CONTACT_FIELDS = [
+  ["First Name", "FirstName", (c) => c.FirstName], ["Last Name", "LastName", (c) => c.LastName],
+  ["Birthdate", "Birthdate", (c) => fmtDate(c.Birthdate)], ["Phone", "Phone", (c) => c.Phone],
+  ["Gender", "Gender__c", (c) => c.Gender__c], ["Contact ID", "Id", (c) => c.Id],
+];
+const unit = (v, u) => (v === null || v === undefined || v === "") ? "" : `${v} ${u}`;
+const SCREENING_GROUPS = [
+  ["Vital Signs", [
+    ["Blood Pressure", "Systolic_BP__c / Diastolic_BP__c", (s) => s.Systolic_BP__c ? `${s.Systolic_BP__c}/${s.Diastolic_BP__c ?? "?"} mmHg` : ""],
+    ["Heart Rate", "Heart_Rate__c", (s) => unit(s.Heart_Rate__c, "bpm")],
+    ["Respiratory Rate", "Respiratory_Rate__c", (s) => unit(s.Respiratory_Rate__c, "/min")],
+    ["SpO2", "SpO2__c", (s) => unit(s.SpO2__c, "%")],
+    ["Temperature", "Temperature__c", (s) => s.Temperature__c ? `${s.Temperature__c} °${s.Temperature_Unit__c || "F"}` : ""],
+    ["Blood Glucose", "Blood_Glucose__c", (s) => unit(s.Blood_Glucose__c, "mg/dL")],
+  ]],
+  ["Body Measurements", [
+    ["Height", "Height_Ft__c / Height_In__c", (s) => s.Height_Ft__c ? `${s.Height_Ft__c} ft ${s.Height_In__c ?? 0} in` : ""],
+    ["Weight", "Weight_Lbs__c", (s) => unit(s.Weight_Lbs__c, "lbs")],
+    ["BMI (on card)", "BMI_Recorded__c", (s) => s.BMI_Recorded__c ?? ""],
+    ["BMI (calculated)", "BMI_Calculated__c", (s) => s.BMI_Calculated__c ?? ""],
+  ]],
+  ["Health History", [
+    ["Smoker", "Smoker__c", (s) => s.Smoker__c], ["Alcohol Use", "Alcohol_Use__c", (s) => s.Alcohol_Use__c],
+    ["Physically Active", "Physically_Active__c", (s) => s.Physically_Active__c],
+    ["Medical Conditions", "Medical_Conditions__c", (s) => s.Medical_Conditions__c],
+    ["Current Medications", "Current_Medications__c", (s) => s.Current_Medications__c],
+    ["Notes", "Notes__c", (s) => s.Notes__c],
+  ]],
+  ["Screening Details", [
+    ["Screening", "Name", (s) => s.Name], ["Screening Date", "Screening_Date__c", (s) => fmtDate(s.Screening_Date__c)],
+    ["Event", "Event_Name__c", (s) => s.Event_Name__c], ["Collected By", "Collected_By__c", (s) => s.Collected_By__c],
+    ["Card Patient ID", "Card_Patient_ID__c", (s) => s.Card_Patient_ID__c],
+    ["Processing Time", "Processing_Seconds__c", (s) => unit(s.Processing_Seconds__c, "s")],
+  ]],
+];
+
+const kv = ([label, api, get], obj, animate) =>
+  `<div class="kv" ${animate ? `data-val="${esc(get(obj))}"` : ""}><div class="k">${esc(label)}</div><div class="api">${esc(api)}</div><div class="v">${animate ? "" : esc(get(obj))}</div></div>`;
+
+async function openContact(id, animate = false) {
+  selected = id;
+  history.replaceState(null, "", "#" + id);
+  $("rows").querySelectorAll("tr.row").forEach((tr) => tr.classList.toggle("sel", tr.dataset.id === id));
+  const c = await (await fetch("/api/crm/contacts/" + id)).json();
+  const s = c.screenings[0];
+  const initials = ((c.FirstName || " ")[0] + (c.LastName || " ")[0]).toUpperCase();
+  let html = `<div class="rec-head"><div class="avatar">${esc(initials)}</div><div style="flex:1">
+      <div class="type">Contact</div><h2>${esc(c.FirstName)} ${esc(c.LastName)}</h2></div>
+      ${animate ? '<span class="incoming">● New from IntakeScan</span>' : ""}
+      ${s && s.Needs_Follow_Up__c ? '<span class="pill check">Needs follow-up</span>' : ""}</div><div class="rec-body">`;
+  html += `<div class="group-title">Contact Information</div><div class="grid">${CONTACT_FIELDS.map((f) => kv(f, c, animate)).join("")}</div>`;
+  if (s) {
+    if (s.Alerts__c.length) {
+      html += `<div class="group-title">Screening Flags <span class="muted" style="font-weight:400;font-size:12px">Alerts__c · not a diagnosis</span></div>`;
+      html += s.Alerts__c.map((a) => `<div class="alert ${a.level}"><b>${a.level.replace("_", "-")}</b>${esc(a.text)}</div>`).join("");
+    }
+    html += `<div class="group-title">Latest Health Screening <span class="muted" style="font-weight:400;font-size:12px">Health_Screening__c</span></div>`;
+    for (const [title, fields] of SCREENING_GROUPS) {
+      html += `<div class="group-title" style="font-size:13px;border:0;margin-bottom:0">${title}</div><div class="grid">${fields.map((f) => kv(f, s, animate)).join("")}</div>`;
+    }
+    if (s.Source_Image__c) {
+      html += `<div class="group-title">Source Card <span class="muted" style="font-weight:400;font-size:12px">Source_Image__c</span></div>
+        <div class="source"><img src="${esc(s.Source_Image__c)}" alt="Scanned card" onclick="zoom(this.src)"></div>`;
+    }
+    if (c.screenings.length > 1) {
+      html += `<div class="group-title">Screening History (${c.screenings.length})</div><table class="history"><tr><th>Name</th><th>Date</th><th>BP</th><th>SpO2</th><th>HR</th><th>Glucose</th></tr>` +
+        c.screenings.map((x) => `<tr><td>${esc(x.Name)}</td><td>${fmtDate(x.Screening_Date__c)}</td><td>${x.Systolic_BP__c ?? ""}/${x.Diastolic_BP__c ?? ""}</td><td>${x.SpO2__c ?? ""}</td><td>${x.Heart_Rate__c ?? ""}</td><td>${x.Blood_Glucose__c ?? ""}</td></tr>`).join("") + `</table>`;
+    }
+  }
+  html += `</div>`;
+  $("detail").innerHTML = html;
+  $("detail").scrollTop = 0;
+  if (animate) typeIn();
+}
+
+// "Live entry" effect: values type into each field one after another.
+async function typeIn() {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  for (const box of $("detail").querySelectorAll(".kv[data-val]")) {
+    const val = box.dataset.val, v = box.querySelector(".v");
+    if (!val) continue;
+    box.classList.add("typing");
+    box.scrollIntoView({ block: "nearest" });
+    for (let i = 1; i <= val.length; i++) { v.textContent = val.slice(0, i); await sleep(val.length > 20 ? 8 : 22); }
+    box.classList.remove("typing"); box.classList.add("filled");
+    await sleep(40);
+  }
+}
+
+function zoom(src) {
+  const lb = document.createElement("div");
+  lb.className = "lightbox"; lb.innerHTML = `<img src="${src}">`; lb.onclick = () => lb.remove();
+  document.body.appendChild(lb);
+}
+
+$("resetBtn").onclick = async () => {
+  if (!confirm("Delete all demo patients and screenings?")) return;
+  await fetch("/api/crm/reset", { method: "POST" });
+};
+
+const es = new EventSource("/api/events");
+es.onmessage = async (m) => {
+  const ev = JSON.parse(m.data);
+  if (ev.type === "crm_saved") {
+    await loadList(ev.contact_id);
+    loadStats();
+    openContact(ev.contact_id, true);
+  } else if (ev.type === "crm_reset") {
+    selected = null; loadList(); loadStats();
+    $("detail").innerHTML = '<div class="placeholder"><div><b>Demo data cleared.</b></div></div>';
+  }
+};
+
+loadList(); loadStats();
+if (location.hash.length > 1) openContact(location.hash.slice(1));
+</script>
+</body>
+</html>

@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard</title>
+<link rel="stylesheet" href="/static/app.css">
+<style>
+  .hello { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .hello h1 { margin: 0; font-size: 24px; }
+  .hello .sub { color: var(--muted); }
+  .hello .quick { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+  .top { display: grid; grid-template-columns: minmax(280px, 1fr) 2.2fr; gap: 16px; }
+  .hero { padding: 20px 22px; display: flex; flex-direction: column; justify-content: center; background: linear-gradient(135deg, #0b2545, #134074); color: #fff; border: 0; }
+  .hero .lbl { font-size: 14px; opacity: .85; }
+  .hero .big { font-size: 52px; font-weight: 700; line-height: 1.05; margin: 6px 0; letter-spacing: -1px; }
+  .hero .det { font-size: 13px; opacity: .85; line-height: 1.5; }
+  .hero .how { color: #cfe3ff; font-size: 12px; margin-top: 8px; cursor: help; text-decoration: underline dotted; width: fit-content; }
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .tile { padding: 14px 16px; text-decoration: none; color: inherit; display: block; transition: box-shadow .15s; }
+  a.tile:hover { box-shadow: 0 4px 14px rgba(0,0,0,.08); }
+  .tile .lbl { font-size: 13px; color: var(--muted); }
+  .tile .val { font-size: 28px; font-weight: 650; margin: 2px 0; }
+  .tile .sub { font-size: 13px; color: #52514e; }
+  .tile .flag { font-size: 12px; font-weight: 700; color: var(--missing); }
+  .cols { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 16px; margin-top: 16px; align-items: start; }
+  .box { padding: 0; overflow: hidden; }
+  .box h3 { margin: 0; padding: 12px 16px; font-size: 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .box h3 .sp { flex: 1; } .box h3 a { font-weight: 400; font-size: 13px; }
+  .row { display: flex; gap: 10px; align-items: center; padding: 10px 16px; border-top: 1px solid #eef0f3; font-size: 14px; }
+  .row:first-of-type { border-top: 0; }
+  .row .t { width: 70px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .row .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .row .main { flex: 1; min-width: 0; }
+  .row .main .s { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .none { padding: 18px 16px; color: var(--muted); font-size: 14px; }
+  .lvl { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px; white-space: nowrap; }
+  .lvl.urgent { background: var(--missing-bg); color: var(--missing); } .lvl.follow_up { background: var(--check-bg); color: var(--check); }
+  @media (max-width: 1150px) { .top, .cols { grid-template-columns: 1fr; } .tiles { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+<nav id="nav"></nav>
+<div class="page" style="max-width:1400px">
+  <div class="hello">
+    <div><h1 id="greet">Dashboard</h1><div class="sub" id="today"></div></div>
+    <div class="quick">
+      <a class="btn" href="/scan">🪪 Scan intake card</a>
+      <a class="btn" href="/patients#register">+ Register patient</a>
+      <a class="btn primary" href="/schedule">📅 Today's schedule</a>
+    </div>
+  </div>
+  <div id="content"><div class="empty">Loading…</div></div>
+  <div style="text-align:right;margin-top:14px"><button class="btn small" id="resetBtn"
+    title="Restores the fictional patients and fills today's schedule. Use this on demo morning.">↺ Reset demo data</button></div>
+</div>
+
+<script src="/static/shell.js"></script>
+<script>
+renderNav("/");
+const money = (n) => "$" + Math.round(n || 0).toLocaleString("en-US");
+const hm = (mins) => mins >= 60 ? `${Math.floor(mins / 60)} hr ${mins % 60} min` : `${mins} min`;
+const STATUS = { booked: ["Booked", "blue"], checked_in: ["Waiting", "amber"], in_visit: ["In visit", "blue"] };
+const CLAIM = { review: ["Needs review", "amber"], ready: ["Ready to submit", "blue"], denied: ["Denied", "red"], partial: ["Partly denied", "red"] };
+
+async function load() {
+  const d = await api("/api/dashboard");
+  const h = new Date().getHours();
+  $("greet").textContent = (h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening") + ", Plano Community Clinic";
+  $("today").textContent = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const ap = d.appointments, b = d.billing, ai = d.ai, A = d.assumptions;
+
+  $("content").innerHTML = `
+  <div class="top">
+    <div class="panel hero">
+      <div class="lbl">Staff time saved by AI so far</div>
+      <div class="big">${hm(d.time_saved_minutes)}</div>
+      <div class="det">${ai.cards_read} intake card${ai.cards_read === 1 ? "" : "s"} read · ${ai.visits_coded} visit${ai.visits_coded === 1 ? "" : "s"} coded · ${ai.appeals_drafted} appeal${ai.appeals_drafted === 1 ? "" : "s"} drafted</div>
+      <div class="how" title="Estimate: ${A.card} min to type a card by hand, ${A.coding} min to code a visit, ${A.appeal} min to research and write an appeal.">How is this estimated?</div>
+    </div>
+    <div class="tiles">
+      <a class="panel tile" href="/schedule"><div class="lbl">Appointments today</div><div class="val">${ap.total}</div>
+        <div class="sub">${ap.waiting} waiting · ${ap.in_visit} in visit · ${ap.done} done</div></a>
+      <a class="panel tile" href="/patients"><div class="lbl">Patients</div><div class="val">${d.patients.total}</div>
+        <div class="sub">+${d.patients.new_today} new today · ${d.patients.scanned_today} card scan${d.patients.scanned_today === 1 ? "" : "s"} today</div></a>
+      <a class="panel tile" href="/pharmacy"><div class="lbl">Prescriptions sent today</div><div class="val">${d.prescriptions.sent_today}</div>
+        <div class="sub">${d.prescriptions.at_pharmacy} at the pharmacy · ${d.prescriptions.emailed_today} emailed</div></a>
+      <a class="panel tile" href="/billing"><div class="lbl">Collected from insurers</div><div class="val">${money(b.collected)}</div>
+        <div class="sub">${money(b.recovered)} recovered by appeals</div></a>
+      <a class="panel tile" href="/billing"><div class="lbl">Open denials</div><div class="val">${money(b.denied_amount)}</div>
+        <div class="sub">${b.denials_open ? `<span class="flag">⚠ ${b.denials_open} claim${b.denials_open > 1 ? "s" : ""} to resolve</span>` : "✓ none open"}${b.written_off ? ` · ${money(b.written_off)} written off` : ""}</div></a>
+      <a class="panel tile" href="/billing"><div class="lbl">AI codes accepted by staff</div><div class="val">${ai.acceptance_rate === null ? "-" : ai.acceptance_rate + "%"}</div>
+        <div class="sub">${ai.codes_suggested} code${ai.codes_suggested === 1 ? "" : "s"} suggested · ${ai.appeals_won} appeal${ai.appeals_won === 1 ? "" : "s"} won</div></a>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div class="panel box"><h3>Up next today <span class="sp"></span><a href="/schedule">Schedule →</a></h3>
+      ${d.upcoming.map((a) => `<div class="row">
+          <span class="t">${new Date(a.start).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>
+          <span class="dot" style="background:${esc(a.color)}" title="${esc(a.provider)}"></span>
+          <div class="main"><b>${esc(a.name)}</b><div class="s">${esc(a.provider)}${a.reason ? " · " + esc(a.reason) : ""}</div></div>
+          <span class="badge ${STATUS[a.status][1]}">${STATUS[a.status][0]}</span>
+          ${a.status === "booked" ? "" : `<button class="btn small" data-start="${a.id}">${a.status === "in_visit" ? "Open visit" : "Start visit"}</button>`}
+        </div>`).join("") || `<div class="none">No more appointments today.</div>`}
+    </div>
+    <div class="panel box"><h3>Needs follow-up <span class="muted small" style="font-weight:400">from screenings, last 30 days</span></h3>
+      ${d.follow_ups.map((f) => `<div class="row">
+          <div class="main"><a href="/patient?id=${f.patient_id}"><b>${esc(f.name)}</b></a>
+            <div class="s" title="${esc(f.text)}">${esc(f.text)}</div></div>
+          <span class="lvl ${f.level}">${f.level === "urgent" ? "⛔ Urgent" : "⚠ Follow-up"}</span>
+          ${f.next_appt ? `<span class="muted small">booked ${fmtDate(f.next_appt.slice(0, 10))}</span>` : `<a class="btn small" href="/schedule?patient_id=${f.patient_id}">Book</a>`}
+        </div>`).join("") || `<div class="none">✓ Nobody flagged. Abnormal screening results show up here.</div>`}
+    </div>
+    <div class="panel box"><h3>Billing to-do <span class="sp"></span><a href="/billing">Billing →</a></h3>
+      ${d.action_items.map((c) => `<a class="row" href="/billing?claim=${c.claim_id}" style="text-decoration:none;color:inherit">
+          <div class="main"><b>${esc(c.name)}</b><div class="s">Claim #${c.claim_id} · ${money(c.amount)}${c.errors ? ` · ${c.errors} checker error${c.errors > 1 ? "s" : ""}` : ""}</div></div>
+          <span class="badge ${CLAIM[c.status][1]}">${CLAIM[c.status][0]}</span></a>`).join("") || `<div class="none">✓ Nothing waiting.</div>`}
+    </div>
+  </div>`;
+
+  $("content").querySelectorAll("[data-start]").forEach((btn) => btn.onclick = async () => {
+    const r = await api(`/api/appointments/${btn.dataset.start}/start-visit`, { method: "POST" });
+    location.href = "/visit?id=" + r.encounter_id;
+  });
+}
+
+$("resetBtn").onclick = async () => {
+  if (!confirm("Reset all demo data? This restores the fictional patients and today's schedule, and removes anything added since.")) return;
+  await api("/api/demo/reset", { method: "POST" });
+  toast("Demo data reset ✓");
+  load();
+};
+
+let t;
+onEvent((ev) => {
+  if (["schedule_changed", "claim_updated", "claim_created", "rx_sent", "rx_updated", "crm_saved", "patient_created", "clinic_reset"].includes(ev.type)) {
+    clearTimeout(t); t = setTimeout(load, 400);
+  }
+});
+load();
+</script>
+</body>
+</html>

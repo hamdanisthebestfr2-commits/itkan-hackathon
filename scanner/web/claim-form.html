@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claim form</title>
+<link rel="stylesheet" href="/static/app.css">
+<style>
+  body { background: #e9ecef; }
+  .bar { display: flex; gap: 10px; justify-content: center; padding: 14px; }
+  .form { width: 900px; max-width: calc(100% - 32px); margin: 0 auto 40px; background: #fff; padding: 26px 30px; border: 1px solid #c8ccd2;
+    font: 12px/1.35 "Segoe UI", Arial, sans-serif; color: #111; }
+  .form h1 { font-size: 16px; margin: 0; letter-spacing: .5px; }
+  .demo { color: #c4291c; font-weight: 700; font-size: 11px; }
+  .grid { display: grid; grid-template-columns: repeat(6, 1fr); border: 1.5px solid #b2232a; margin-top: 10px; }
+  .box { border: .5px solid #d9a0a3; padding: 5px 7px; min-height: 40px; }
+  .box .n { color: #b2232a; font-size: 9.5px; text-transform: uppercase; letter-spacing: .3px; display: block; margin-bottom: 2px; }
+  .box .v { font-size: 13px; font-family: Consolas, "Courier New", monospace; font-weight: 600; }
+  .s2 { grid-column: span 2; } .s3 { grid-column: span 3; } .s4 { grid-column: span 4; } .s6 { grid-column: span 6; }
+  .dx { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px 14px; }
+  table.lines { width: 100%; border-collapse: collapse; }
+  table.lines th { color: #b2232a; font-size: 9.5px; text-transform: uppercase; text-align: left; border-bottom: .5px solid #d9a0a3; padding: 4px; font-weight: 600; }
+  table.lines td { padding: 6px 4px; font-family: Consolas, "Courier New", monospace; font-size: 13px; font-weight: 600; border-bottom: .5px dashed #e5c4c6; }
+  .r { text-align: right; }
+  @media print { body { background: #fff; } .bar, #nav { display: none; } .form { border: 0; margin: 0; width: auto; } }
+</style>
+</head>
+<body>
+<nav id="nav"></nav>
+<div class="bar"><button class="btn primary" onclick="print()">Print / Save as PDF</button><a class="btn" id="back" href="/billing">← Back to billing</a></div>
+<div class="form" id="form"><div class="empty">Loading…</div></div>
+<script src="/static/shell.js"></script>
+<script>
+renderNav("/billing");
+const id = Number(new URLSearchParams(location.search).get("id"));
+const L = "ABCDEFGHIJKL";
+const box = (n, label, v, span = "s2") => `<div class="box ${span}"><span class="n">${n} ${label}</span><span class="v">${v || "&nbsp;"}</span></div>`;
+const mdy = (iso) => iso ? iso.slice(5, 7) + " " + iso.slice(8, 10) + " " + iso.slice(0, 4) : "";
+
+api(`/api/claims/${id}`).then((c) => {
+  $("back").href = "/billing?claim=" + c.id;
+  const p = c.patient, enc = c.encounter, pr = c.provider || {}, payer = c.payer || {};
+  const dxs = c.diagnoses.filter((d) => d.status === "accepted");
+  const pxs = c.procedures.filter((x) => x.status === "accepted");
+  const ptr = (x) => (x.dx || []).map((d) => L[dxs.findIndex((y) => y.code === d)]).filter(Boolean).slice(0, 4).join("");
+  const name = `${p.last_name}, ${p.first_name}`.toUpperCase();
+  $("form").innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-end">
+      <div><h1>HEALTH INSURANCE CLAIM FORM</h1><div class="muted">Layout modeled on the CMS-1500 (02/12) · Claim #${c.id}</div></div>
+      <div class="demo">DEMO: FICTIONAL PATIENT · NOT A REAL CLAIM</div></div>
+    <div class="grid">
+      ${box("", "Insurance carrier", esc(payer.name || "NONE") + (payer.payer_code ? " · Payer ID " + esc(payer.payer_code) : ""), "s4")}
+      ${box("1a", "Insured's ID number", esc(p.member_id || ""), "s2")}
+      ${box("2", "Patient's name", esc(name), "s3")}
+      ${box("3", "Birth date / sex", `${mdy(p.dob)} &nbsp; ${esc(p.sex || "")}`, "s1 s2")}
+      ${box("4", "Insured's name", esc(name), "s1")}
+      ${box("5", "Patient's address", esc([p.address, p.city, p.state, p.zip].filter(Boolean).join(", ")) + (p.phone ? "<br>" + esc(p.phone) : ""), "s3")}
+      ${box("6", "Relationship to insured", "SELF", "s1")}
+      ${box("11", "Insured's group number", esc(p.group_number || ""), "s2")}
+      ${box("12", "Patient signature", "SIGNATURE ON FILE", "s3")}
+      ${box("13", "Insured signature", "SIGNATURE ON FILE", "s3")}
+      <div class="box s6"><span class="n">21 Diagnosis or nature of illness or injury (ICD Ind. 0)</span>
+        <div class="dx">${dxs.map((d, i) => `<span class="v">${L[i]}. ${esc(d.code)}</span>`).join("")}</div></div>
+      <div class="box s6" style="padding:0">
+        <table class="lines"><tr><th>24A Date(s) of service</th><th>B POS</th><th>D CPT/HCPCS</th><th>Modifier</th><th>E Dx pointer</th>
+          <th class="r">F Charges</th><th class="r">G Units</th><th>J Rendering NPI</th></tr>
+        ${pxs.map((x) => `<tr><td>${mdy(enc.date)}</td><td>11</td><td>${esc(x.code)}</td><td>${esc((x.modifiers || []).join(" "))}</td>
+          <td>${ptr(x)}</td><td class="r">${(x.charge * (x.units || 1)).toFixed(2)}</td><td class="r">${x.units || 1}</td><td>${esc(pr.npi || "")}</td></tr>`).join("")}
+        ${Array.from({ length: Math.max(0, 6 - pxs.length) }, () => `<tr><td colspan="8">&nbsp;</td></tr>`).join("")}
+        </table></div>
+      ${box("25", "Federal tax ID", "XX-XXXXXXX (demo)", "s2")}
+      ${box("26", "Patient account no.", esc(p.mrn), "s2")}
+      ${box("28", "Total charge", "$" + c.total_charge.toFixed(2), "s2")}
+      ${box("31", "Signature of physician", `${esc(pr.name || "")}${pr.credentials ? ", " + esc(pr.credentials) : ""}<br>${mdy(enc.date)}`, "s2")}
+      ${box("32", "Service facility", "PLANO COMMUNITY CLINIC (DEMO)<br>PLANO, TX", "s2")}
+      ${box("33", "Billing provider", `PLANO COMMUNITY CLINIC (DEMO)<br>NPI ${esc(pr.npi || "")}`, "s2")}
+    </div>`;
+}).catch((e) => $("form").innerHTML = `<div class="empty">${esc(e.message)}</div>`);
+</script>
+</body>
+</html>

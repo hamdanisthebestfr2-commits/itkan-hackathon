@@ -1,0 +1,17 @@
+# secrets: never commit (API key, Gmail App Password)
+.env
+**/.env
+
+# local environment & generated data
+.venv/
+**/.venv/
+__pycache__/
+*.pyc
+scanner/data/
+*.sqlite3
+
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
