@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clinical Inbox</title>
+<link rel="stylesheet" href="/static/app.css">
+<style>
+  .ib { display: grid; grid-template-columns: 380px 1fr; gap: 16px; align-items: start; }
+  .filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .filters button { border: 1px solid var(--border); background: #fff; border-radius: 999px; padding: 5px 12px; cursor: pointer; font-size: 13px; }
+  .filters button.active { background: #0b2545; color: #fff; border-color: #0b2545; }
+  .filters .n { opacity: .7; margin-left: 3px; }
+  .list { padding: 0; overflow: hidden; }
+  .item { display: flex; gap: 10px; padding: 11px 14px; border-bottom: 1px solid #eef0f3; cursor: pointer; border-left: 4px solid transparent; }
+  .item:hover { background: #f7f9fc; }
+  .item.sel { background: #eef5ff; border-left-color: var(--brand); }
+  .item.urgent { border-left-color: #e5484d; }
+  .item .ic { font-size: 20px; line-height: 1.2; }
+  .item .main { flex: 1; min-width: 0; }
+  .item .top { display: flex; gap: 6px; align-items: baseline; }
+  .item .who { font-weight: 700; font-size: 14px; }
+  .item .when { margin-left: auto; color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .item .ttl { font-size: 13px; }
+  .item .sum { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item.new { animation: arrive 2.5s ease-out; }
+  @keyframes arrive { 0% { background: #dff7ee; } 100% { background: transparent; } }
+  .detail h2 { margin: 0 0 2px; font-size: 20px; }
+  .detail .sub { color: var(--muted); font-size: 13px; margin-bottom: 12px; }
+  .detail textarea { width: 100%; min-height: 90px; font: inherit; font-size: 14px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; box-sizing: border-box; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+  .chips button { border: 1px dashed var(--border); background: #fafbfc; border-radius: 999px; padding: 3px 10px; font-size: 12px; cursor: pointer; }
+  .bubble { border-radius: 10px; padding: 9px 12px; margin: 6px 0; font-size: 14px; white-space: pre-wrap; max-width: 85%; }
+  .bubble.in { background: #f1f3f6; }
+  .bubble.out { background: #e6f2ff; margin-left: auto; }
+  .bubble .meta { font-size: 11px; color: var(--muted); margin-bottom: 3px; white-space: normal; }
+  .warnbox { background: #fff1f0; border: 1px solid #f5c2bd; color: #8a1c12; border-radius: 8px; padding: 8px 12px; font-size: 13px; margin: 8px 0; }
+  .aibox { background: #f6f3ff; border: 1px solid #ddd3fb; border-radius: 8px; padding: 6px 10px; font-size: 12px; color: #5b3fb5; margin-bottom: 6px; }
+  .who-am-i { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+  .who-am-i select { padding: 4px 8px; }
+  .kv { display: grid; grid-template-columns: 110px 1fr; gap: 5px 10px; font-size: 14px; }
+  .kv .k { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .3px; padding-top: 2px; }
+  .btn.danger { background: #c4291c; border-color: #c4291c; color: #fff; }
+  .empty-pane { padding: 60px 20px; text-align: center; color: var(--muted); }
+  @media (max-width: 900px) { .ib { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<nav id="nav"></nav>
+<div class="page">
+  <div class="page-head"><h1>Clinical Inbox <span class="muted" style="font-size:15px;font-weight:400">· lab results, refill requests and patient messages</span></h1>
+    <span class="who-am-i">Working as <select id="me"></select></span></div>
+  <div class="filters" id="filters"></div>
+  <div class="ib">
+    <div class="panel list" id="list"><div class="empty">Loading…</div></div>
+    <div class="panel detail" id="detail"><div class="empty-pane">Select an item.</div></div>
+  </div>
+</div>
+
+<script src="/static/shell.js"></script>
+<script src="/static/labs.js"></script>
+<script>
+renderNav("/inbox");
+const TYPES = {
+  result: ["🧪", "Results"], refill_request: ["💊", "Refills"],
+  message: ["✉️", "Messages"], appointment_request: ["📅", "Appointments"],
+};
+let items = [], filter = "all", selKey = null, seen = null, providers = [];
+const key = (x) => `${x.type}:${x.id}`;
+
+function ago(iso) {
+  if (!iso) return "";
+  const m = Math.round((Date.now() - new Date(iso)) / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m} min ago`;
+  if (m < 60 * 24) return `${Math.round(m / 60)} h ago`;
+  return fmtDate(iso);
+}
+const me = () => providers.find((p) => p.id === Number($("me").value)) || providers[0];
+
+async function load() {
+  items = await api("/api/inbox");
+  const fresh = seen ? new Set(items.map(key).filter((k) => !seen.has(k))) : new Set();
+  seen = new Set(items.map(key));
+  if (selKey && !items.some((x) => key(x) === selKey)) selKey = null;
+  renderList(fresh);
+  const sel = items.find((x) => key(x) === selKey);
+  if (sel) { if (!$("detail").contains(document.activeElement)) renderDetail(sel); }
+  else $("detail").innerHTML = `<div class="empty-pane">${items.length ? "Select an item." : "🎉 Inbox zero: nothing waiting."}</div>`;
+}
+
+function renderList(fresh = new Set()) {
+  const count = (t) => items.filter((x) => t === "all" || x.type === t).length;
+  $("filters").innerHTML = [["all", "All"], ...Object.entries(TYPES).map(([t, v]) => [t, v[0] + " " + v[1]])]
+    .map(([t, label]) => `<button class="${filter === t ? "active" : ""}" data-f="${t}">${label}<span class="n">${count(t)}</span></button>`).join("");
+  $("filters").querySelectorAll("button").forEach((b) => b.onclick = () => { filter = b.dataset.f; renderList(); });
+  const shown = items.filter((x) => filter === "all" || x.type === filter);
+  $("list").innerHTML = shown.map((x) => `<div class="item ${key(x) === selKey ? "sel" : ""} ${x.urgent ? "urgent" : ""} ${fresh.has(key(x)) ? "new" : ""}" data-k="${key(x)}">
+      <div class="ic">${TYPES[x.type][0]}</div>
+      <div class="main"><div class="top"><span class="who">${esc(x.patient)}</span>${x.urgent ? '<span class="badge red">Abnormal</span>' : ""}<span class="when">${ago(x.when)}</span></div>
+        <div class="ttl">${esc(x.title)}</div><div class="sum">${esc(x.summary)}</div></div></div>`).join("")
+    || `<div class="empty">Nothing here.</div>`;
+  $("list").querySelectorAll(".item").forEach((el) => el.onclick = () => {
+    selKey = el.dataset.k;
+    renderList();
+    renderDetail(items.find((x) => key(x) === selKey));
+  });
+}
+
+function header(x) {
+  return `<h2>${TYPES[x.type][0]} ${esc(x.title)}</h2>
+    <div class="sub"><a href="/patient?id=${x.patient_id}"><b>${esc(x.patient)}</b></a> · ${esc(x.mrn)} · ${fmtDateTime(x.when)}</div>`;
+}
+
+function renderDetail(x) {
+  const d = $("detail");
+  if (x.type === "result") return renderResult(d, x);
+  if (x.type === "refill_request") return renderRefill(d, x);
+  return renderMessage(d, x);
+}
+
+// ---------- lab result ----------
+function renderResult(d, x) {
+  const o = x.order;
+  const quick = o.abnormal
+    ? [`Your ${o.test_name.replace(/ \(.*\)/, "")} shows some values outside the normal range. Let's discuss them: please book a follow-up visit.`,
+       "Some values are a little out of range. No change for now; we'll recheck at your next visit."]
+    : [`Your ${o.test_name.replace(/ \(.*\)/, "")} results are normal. No changes needed.`];
+  d.innerHTML = `${header(x)}
+    <div class="sub">Ordered by ${esc(o.provider_name || "-")} · ordered ${fmtDateTime(o.ordered_at)} · resulted ${fmtDateTime(o.resulted_at)}</div>
+    ${labTable(o)}
+    <h3 style="margin-top:16px">Note to the patient <span class="muted small" style="text-transform:none;letter-spacing:0;font-weight:400">· shown in their portal next to the results (patients see results as soon as they arrive, per the Cures Act)</span></h3>
+    <div class="chips">${quick.map((q, i) => `<button data-q="${i}">${esc(q.slice(0, 60))}…</button>`).join("")}</div>
+    <textarea id="resComment" placeholder="Optional: explain the result in plain language"></textarea>
+    <div class="actions"><button class="btn primary" id="reviewBtn">✓ Mark reviewed & send note to patient</button>
+      <a class="btn" href="/patient?id=${x.patient_id}">Open chart</a>
+      ${o.abnormal ? `<a class="btn" href="/schedule?patient_id=${x.patient_id}">Book follow-up</a>` : ""}</div>`;
+  d.querySelectorAll("[data-q]").forEach((b) => b.onclick = () => { $("resComment").value = quick[b.dataset.q]; });
+  $("reviewBtn").onclick = async () => {
+    $("reviewBtn").disabled = true;
+    try {
+      await api(`/api/labs/${o.id}/review`, { method: "POST", body: { comment: $("resComment").value, reviewer: me().name } });
+      toast(`${o.test_name} reviewed · ${x.patient} can see it in the portal ✓`);
+      selKey = null; load();
+    } catch (e) { toast(e.message, "error"); $("reviewBtn").disabled = false; }
+  };
+}
+
+// ---------- refill request ----------
+async function renderRefill(d, x) {
+  const m = x.message;
+  const p = await api(`/api/patients/${x.patient_id}`);
+  const rx = p.prescriptions.find((r) => r.id === m.rx_id);
+  const controlled = rx && rx.schedule;
+  d.innerHTML = `${header(x)}
+    ${p.allergies ? `<div class="warnbox">⚠ Allergies: ${esc(p.allergies)}</div>` : ""}
+    <div class="bubble in"><div class="meta">${esc(x.patient)} · ${fmtDateTime(m.created_at)}</div>${esc(m.body)}</div>
+    ${rx ? `<div class="kv" style="margin-top:10px">
+      <span class="k">Medication</span><span><b>${esc(rx.drug)}</b> ${esc(rx.strength)} ${controlled ? `<span class="badge red">${esc(rx.schedule)}</span>` : ""}</span>
+      <span class="k">Instructions</span><span>${esc(rx.sig)}</span>
+      <span class="k">Last sent</span><span>${fmtDate(rx.sent_at)} · qty ${rx.quantity} · ${rx.refills} refills · ${esc(rx.pharmacy_name)}</span>
+      <span class="k">Conditions</span><span>${esc(p.conditions || "-")}</span></div>` : ""}
+    ${controlled ? `<div class="warnbox">Controlled substance: a refill can't be approved from the inbox. It must be a new EPCS prescription signed with two-factor authentication from the chart.</div>
+      <div class="actions"><a class="btn primary" href="/patient?id=${x.patient_id}">Open chart to prescribe</a></div>` : `
+    <div class="actions" style="margin-top:14px">
+      <label class="small">Refills <select id="rfRefills">${[0, 1, 2, 3, 5, 11].map((n) => `<option ${n === 3 ? "selected" : ""}>${n}</option>`).join("")}</select></label>
+      <button class="btn primary" id="approveBtn">✓ Approve & send to pharmacy</button>
+      <button class="btn" id="denyBtn">Deny…</button></div>
+    <div id="denyBox" hidden style="margin-top:10px">
+      <textarea id="denyReason" placeholder="Reason the patient will see, e.g. 'We need to see you before refilling. Please book a visit.'"></textarea>
+      <div class="actions"><button class="btn danger" id="denySend">Send denial</button></div></div>`}`;
+  if (controlled) return;
+  $("approveBtn").onclick = async () => {
+    $("approveBtn").disabled = true;
+    try {
+      const r = await api(`/api/inbox/refills/${m.id}/approve`, { method: "POST", body: { provider_id: me().id, refills: Number($("rfRefills").value) } });
+      toast(`Refill sent to ${r.pharmacy}${r.emailed ? " + emailed" : ""} · patient notified ✓`);
+      selKey = null; load();
+    } catch (e) { toast(e.message, "error"); $("approveBtn").disabled = false; }
+  };
+  $("denyBtn").onclick = () => { $("denyBox").hidden = false; $("denyReason").focus(); };
+  $("denySend").onclick = async () => {
+    try {
+      await api(`/api/inbox/refills/${m.id}/deny`, { method: "POST", body: { reason: $("denyReason").value, provider_id: me().id } });
+      toast("Patient notified"); selKey = null; load();
+    } catch (e) { toast(e.message, "error"); }
+  };
+}
+
+// ---------- message / appointment request ----------
+function renderMessage(d, x) {
+  const m = x.message, det = m.details || {};
+  d.innerHTML = `${header(x)}
+    ${x.thread.map((t) => `<div class="bubble ${t.direction === "to_clinic" ? "in" : "out"}">
+      <div class="meta">${esc(t.direction === "to_clinic" ? x.patient : t.sender || "Care team")} · ${fmtDateTime(t.created_at)}</div>${esc(t.body)}</div>`).join("")}
+    ${x.type === "appointment_request" ? `<div class="actions"><a class="btn primary" href="/schedule?patient_id=${x.patient_id}${det.preferred_date ? "&date=" + det.preferred_date : ""}">📅 Book it on the schedule</a></div>` : ""}
+    <h3 style="margin-top:16px">Reply <span class="muted small" style="text-transform:none;letter-spacing:0;font-weight:400">· appears in the patient's portal</span></h3>
+    <div id="aiNote"></div>
+    <textarea id="replyText" placeholder="Write a reply…"></textarea>
+    <div class="actions"><button class="btn" id="draftBtn">✨ AI draft reply</button>
+      <button class="btn primary" id="sendBtn">Send reply</button>
+      <button class="btn" id="doneBtn">Mark done (no reply)</button></div>`;
+  $("draftBtn").onclick = async () => {
+    const b = $("draftBtn"); b.disabled = true; b.textContent = "✨ Drafting…";
+    try {
+      const r = await api(`/api/inbox/messages/${m.id}/draft`, { method: "POST" });
+      $("replyText").value = r.reply;
+      $("aiNote").innerHTML = (r.urgency_note ? `<div class="warnbox">🚨 ${esc(r.urgency_note)}</div>` : "") +
+        `<div class="aibox">AI draft: review and edit before sending.${r.needs_clinician ? " The message mentions symptoms: a clinician should review it." : ""}</div>`;
+    } catch (e) { toast(e.message, "error"); }
+    b.disabled = false; b.textContent = "✨ AI draft reply";
+  };
+  $("sendBtn").onclick = async () => {
+    const text = $("replyText").value.trim();
+    if (!text) { toast("Write a reply first", "error"); return; }
+    $("sendBtn").disabled = true;
+    try {
+      await api(`/api/messages/${m.id}/reply`, { method: "POST", body: { body: text, sender: me().name } });
+      toast(`Reply sent to ${x.patient}'s portal ✓`); selKey = null; load();
+    } catch (e) { toast(e.message, "error"); $("sendBtn").disabled = false; }
+  };
+  $("doneBtn").onclick = async () => {
+    await api(`/api/messages/${m.id}`, { method: "PATCH", body: { status: "done" } });
+    toast("Marked done"); selKey = null; load();
+  };
+}
+
+(async () => {
+  providers = (await reference()).providers;
+  $("me").innerHTML = providers.map((p) => `<option value="${p.id}">${esc(p.name)}, ${esc(p.credentials)}</option>`).join("");
+  await load();
+  const first = items[0];
+  if (first && new URLSearchParams(location.search).get("open") !== "0") { selKey = key(first); renderList(); renderDetail(first); }
+})();
+
+let t;
+onEvent((ev) => {
+  if (["lab_resulted", "lab_reviewed", "message_created", "message_updated"].includes(ev.type)) {
+    if (ev.type === "lab_resulted") toast(`🧪 New result: ${ev.order.test_name} for ${ev.order.first_name} ${ev.order.last_name}`);
+    if (ev.type === "message_created" && ev.message.direction === "to_clinic") toast(`✉️ New from ${ev.message.first_name} ${ev.message.last_name}: ${ev.message.subject}`);
+    clearTimeout(t); t = setTimeout(load, 250);
+  }
+  if (ev.type === "clinic_reset") { seen = null; selKey = null; load(); }
+});
+</script>
+</body>
+</html>

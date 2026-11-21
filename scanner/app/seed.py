@@ -185,3 +185,6 @@ def seed() -> None:
 
     from . import portal  # Track B: clears + seeds patient messages (no stale rows after "Reset demo data")
     portal.seed(ids)
+
+    from . import labs  # Track A3: lab history + results waiting for review in the Clinical Inbox
+    labs.seed(ids)

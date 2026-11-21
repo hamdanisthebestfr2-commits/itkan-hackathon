@@ -157,3 +157,23 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 .epcs-2fa-row label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--muted); }
 .epcs-2fa-row input { border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px; width: 150px; font-size: 16px; letter-spacing: 2px; }
 .epcs-code { font-size: 18px; letter-spacing: 3px; color: var(--brand); }
+
+/* Clinical Inbox nav badge + lab results */
+.nav-badge { display: inline-block; min-width: 18px; padding: 0 6px; border-radius: 999px; background: #3b82f6; color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; margin-left: 3px; }
+.nav-badge.urgent { background: #e5484d; }
+table.labres { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.labres th { text-align: left; color: var(--muted); font-weight: 600; font-size: 12px; padding: 5px 8px; border-bottom: 1px solid var(--border); }
+table.labres td { padding: 6px 8px; border-bottom: 1px solid #eef0f3; }
+table.labres tr.abn td { background: #fff6f5; }
+table.labres .flag { font-weight: 700; font-size: 11px; padding: 1px 6px; border-radius: 4px; background: var(--missing-bg); color: var(--missing); }
+table.labres .flag.L { background: #e8f0fb; color: #1d4f91; }
+.lab-pick { display: flex; flex-wrap: wrap; gap: 6px; }
+.lab-pick label { border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px; font-size: 13px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; background: #fff; }
+.lab-pick label:has(input:checked) { border-color: var(--brand); background: #eef5ff; color: var(--brand); font-weight: 600; }
+.lab-pick input { margin: 0; }
+.lab-order { border-top: 1px solid #eef0f3; padding: 10px 0; }
+.lab-order .hd { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 14px; }
+.lab-order .hd .sp { flex: 1; }
+.lab-wait { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); font-size: 13px; }
+.lab-wait .dot { width: 8px; height: 8px; border-radius: 50%; background: #e0a030; animation: labpulse 1.2s infinite; }
+@keyframes labpulse { 50% { opacity: .3; } }

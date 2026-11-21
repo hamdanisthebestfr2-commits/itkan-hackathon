@@ -85,6 +85,7 @@ CPT = {
     "82947": ("Blood glucose test, quantitative", 15),
     "82962": ("Blood glucose by home-type monitor (fingerstick)", 12),
     "80061": ("Lipid panel", 45),
+    "80053": ("Comprehensive metabolic panel (CMP)", 50),
     "85025": ("Complete blood count (CBC) with differential", 25),
     "84443": ("Thyroid stimulating hormone (TSH) test", 40),
     "81002": ("Urinalysis, dipstick, non-automated", 10),

@@ -44,10 +44,11 @@
 <script src="/static/shell.js"></script>
 <script src="/static/patient-form.js"></script>
 <script src="/static/rx-form.js"></script>
+<script src="/static/labs.js"></script>
 <script>
 renderNav("/patients");
 const patientId = Number(new URLSearchParams(location.search).get("id"));
-let patient = null;
+let patient = null, labResults = [];
 
 const VITALS = [
   ["BP", (v) => v.bp_systolic ? `${v.bp_systolic}/${v.bp_diastolic ?? "?"}` : null, "mmHg",
@@ -68,7 +69,7 @@ function bmi(v) {
 
 async function load() {
   try {
-    patient = await api(`/api/patients/${patientId}`);
+    [patient, labResults] = await Promise.all([api(`/api/patients/${patientId}`), api(`/api/patients/${patientId}/results`)]);
   } catch (e) {
     $("chart").innerHTML = `<div class="empty">${esc(e.message)}</div>`;
     return;
@@ -168,6 +169,16 @@ function render() {
       </div>
 
       <div class="panel card">
+        <h3>Lab results (${labResults.length})</h3>
+        ${labResults.map((o) => `<div class="lab-order"><div class="hd"><b>${esc(o.test_name)}</b>
+            <span class="muted small">${o.status === "ordered" ? "ordered " + fmtDate(o.ordered_at) : "resulted " + fmtDate(o.resulted_at)}</span>
+            <span class="sp"></span>${labStatus(o)}</div>
+          ${o.status !== "ordered" ? `<details style="margin-top:4px" ${o.abnormal && o.status === "resulted" ? "open" : ""}><summary class="small muted" style="cursor:pointer">Show values</summary>${labTable(o)}</details>` : ""}
+          ${o.provider_comment ? `<div class="small" style="margin-top:4px"><b>Note to patient:</b> ${esc(o.provider_comment)}</div>` : ""}
+        </div>`).join("") || '<span class="muted small">No lab results.</span>'}
+      </div>
+
+      <div class="panel card">
         <h3>Prescriptions (${p.prescriptions.length})</h3>
         ${p.prescriptions.length ? `<table class="data"><thead><tr><th>Medication</th><th>Instructions</th><th>Pharmacy</th><th>Sent</th><th>Status</th></tr></thead><tbody>
           ${p.prescriptions.map((r) => `<tr><td><b>${esc(r.drug)}</b><br><span class="muted small">${esc(r.strength)} · qty ${r.quantity} · ${r.refills} refills</span></td>
@@ -210,6 +221,7 @@ function zoom(src) {
 onEvent((ev) => {
   if (ev.type === "crm_saved" && ev.patient_id === patientId) { toast("New screening added from card scan"); load(); }
   if ((ev.type === "rx_updated" || ev.type === "rx_sent") && ev.rx.patient_id === patientId) load();
+  if (["lab_resulted", "lab_reviewed", "lab_ordered"].includes(ev.type) && ev.patient_id === patientId) load();
   if (ev.type === "clinic_reset") location.href = "/patients";
 });
 load();

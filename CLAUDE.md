@@ -55,8 +55,21 @@ GitHub username and judging time haven't been given yet).
   `GET /api/messages`, `PATCH /api/messages/{id}`, `POST /api/messages/{id}/reply` (events `message_created`/`message_updated`).
   Also a fix: all tabs share ONE SSE stream via a SharedWorker (`static/events-worker.js`) because browsers cap 6 connections
   per site (5+ tabs used to hang); the scan page releases the camera stream while hidden; `api()` retries GETs during restarts.
-- ⏭ Next: A3 Lab orders + results + Clinical Inbox (must provide `GET /api/patients/{id}/results` for the portal and
-  read/act on `messages`).
+- ✅ **A3 Lab orders + results + Clinical Inbox** (not yet committed when written): `app/labs.py` (`lab_orders` table; `CATALOG`
+  CBC/CMP/LIPID/A1C/TSH/GLU/UA with CPTs; **mock lab** returns chart-consistent values (diabetic → high A1c, hypothyroid →
+  high TSH, obesity/HLD → high lipids, UTI → positive UA), deterministic per order, after `LAB_SECONDS` (env, default 20;
+  "Result now (demo)" button); flags H/L/A; `POST/GET /api/encounters/{id}/labs`, `POST /api/labs/{id}/result-now`,
+  `POST /api/labs/{id}/review` {comment, reviewer}, **`GET /api/patients/{id}/results`** (portal contract: test_name, status,
+  results[{analyte,value,unit,ref_range,flag}], provider_comment); events `lab_ordered`/`lab_resulted`/`lab_reviewed`;
+  seed: reviewed history + Omar A1c 5.9 H and Maria lipid waiting). `app/inbox.py`: `GET /api/inbox` (unreviewed results +
+  Track B `messages` with status new/to_clinic, abnormal first), `/api/inbox/count` (nav badge in `shell.js`),
+  refill approve (new Rx → pharmacy + email + portal reply; controlled drugs → 409 "use EPCS"; allergy check) / deny,
+  `POST /api/inbox/messages/{id}/draft` (AI reply draft with urgency note, `SCRIBE_MODELS`). Plain replies/mark done use
+  Track B's endpoints. `web/inbox.html` (`/inbox`, filters, "Working as" provider, live arrivals), `web/static/labs.js`
+  (lab card on the visit page, results panel on the chart). Coder prompt now lists labs ordered at the visit (billable);
+  CPT 80053 added. Patients see results immediately in the portal (Cures Act style); the review adds a note.
+  Tested: API 18/18, UI 11/11 (+ AI draft 1 s), EPCS regression 17/17.
+- ⏭ Next: A4 Care gaps / quality measures, then A5 AI after-visit summary (`encounters.summary`).
 
 ### Research summary: athenaOne vs. us (Nov 21)
 athenaOne = athenaClinicals (EHR) + athenaCollector (practice management/billing) + athenaCommunicator (patients).

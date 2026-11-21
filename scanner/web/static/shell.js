@@ -5,6 +5,7 @@ const PRODUCT_NAME = "FlatRate Health";
 const NAV = [
   { href: "/", label: "Dashboard" },
   { href: "/schedule", label: "Schedule" },
+  { href: "/inbox", label: "Inbox" },  // Track A3: Clinical Inbox (badge = items waiting)
   { href: "/patients", label: "Patients" },
   { href: "/scan", label: "Scan Intake" },
   { href: "/billing", label: "Billing" },
@@ -25,6 +26,23 @@ function renderNav(active) {
     </div>
     <span class="clinic">Plano Community Clinic · demo</span>`;
   document.title = document.title ? `${document.title} · ${PRODUCT_NAME}` : PRODUCT_NAME;
+  _inboxBadge();
+  let t;
+  onEvent((ev) => {
+    if (["lab_resulted", "lab_reviewed", "message_created", "message_updated", "clinic_reset"].includes(ev.type)) {
+      clearTimeout(t); t = setTimeout(_inboxBadge, 300);
+    }
+  });
+}
+
+// Clinical Inbox count on the nav link (red when an abnormal result is waiting).
+async function _inboxBadge() {
+  const link = document.querySelector('.nav a.link[href="/inbox"]');
+  if (!link) return;
+  try {
+    const c = await api("/api/inbox/count");
+    link.innerHTML = "Inbox" + (c.total ? ` <span class="nav-badge ${c.urgent ? "urgent" : ""}">${c.total}</span>` : "");
+  } catch (e) { /* the badge is a nicety; never block the page for it */ }
 }
 
 // Show script errors on the page instead of failing silently (a frozen "Loading…" is worse in a demo).

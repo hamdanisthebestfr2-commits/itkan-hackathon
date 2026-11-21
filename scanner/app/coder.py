@@ -9,7 +9,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from . import ai, billing, clinic, codes, config
+from . import ai, billing, clinic, codes, config, labs
 from .events import broadcast
 
 
@@ -85,6 +85,7 @@ Problem list: {p.get('conditions') or 'none'}. Home medications: {p.get('medicat
 VISIT: {enc['date']}, reason: {appt['reason'] if appt else 'walk-in'}.
 Vitals: {vitals or 'not recorded'}
 Prescriptions sent this visit: {rx}
+Lab tests ordered this visit (performed by the clinic's lab, billable): {labs.orders_for_coding(enc["id"])}
 
 VISIT NOTE:
 \"\"\"
