@@ -123,6 +123,10 @@ def portal_view(patient_id: int) -> dict | None:
     upcoming = sorted([a for a in appts if a["status"] in ("booked", "checked_in", "in_visit") and a["start"][:10] >= today],
                       key=lambda a: a["start"])
     past_appts = [a for a in appts if a not in upcoming and a["start"] < now]
+    from . import reminders      # here, not at the top: reminders imports this module
+    for a in upcoming:           # the patient's answer to the reminder (confirmed / reschedule)
+        r = reminders.response_for(a["id"])
+        a["confirmation"] = r and r["response"]
 
     # Only finished (signed) visits are shown to the patient; unsigned notes are still drafts.
     visits = []

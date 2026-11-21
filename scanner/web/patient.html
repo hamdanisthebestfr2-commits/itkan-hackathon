@@ -46,6 +46,8 @@
 <script src="/static/rx-form.js"></script>
 <script src="/static/labs.js"></script>
 <script src="/static/caregaps.js"></script>
+<script src="/static/eligibility.js"></script>
+<script src="/static/payments.js"></script>
 <script>
 renderNav("/patients");
 const patientId = Number(new URLSearchParams(location.search).get("id"));
@@ -121,7 +123,9 @@ function render() {
           <span class="k">Member ID</span><span>${esc(p.member_id) || '<span class="badge amber">Missing</span>'}</span>
           <span class="k">Group #</span><span>${esc(p.group_number) || "-"}</span></div>`
         : `<span class="badge amber">No insurance on file</span><p class="muted small">Needed before a claim can be billed. Click Edit to add it.</p>`}
+        ${p.payer_name ? '<div id="eligBox" style="margin-top:12px"></div>' : ""}
       </div>
+      <div class="panel card"><h3>Balance</h3><div id="balanceBox"><span class="muted small">Loading…</span></div></div>
       <div class="panel card">
         <h3>Contact &amp; pharmacy</h3>
         <div class="kv">
@@ -195,6 +199,8 @@ function render() {
     </div>
   </div>`;
   $("editBtn").onclick = () => openPatientForm(patient, load);
+  renderBalanceCard($("balanceBox"), p);  // Track B
+  if ($("eligBox")) renderEligibility($("eligBox"), p.id, { source: "chart", compact: true, onEditInsurance: () => openPatientForm(patient, load) });  // Track B
   $("visitBtn").onclick = openWalkIn;
   $("rxBtn").onclick = () => {
     openModal(`<div class="modal-head"><h2>Prescribe for ${esc(p.first_name)} ${esc(p.last_name)}</h2><button class="x" onclick="closeModal()">×</button></div>
@@ -229,6 +235,7 @@ onEvent((ev) => {
   if ((ev.type === "rx_updated" || ev.type === "rx_sent") && ev.rx.patient_id === patientId) load();
   if (["lab_resulted", "lab_reviewed", "lab_ordered"].includes(ev.type) && ev.patient_id === patientId) load();
   if (ev.type === "clinic_reset") location.href = "/patients";
+  if (ev.type === "payment_posted" && ev.patient_id === patientId && $("balanceBox")) renderBalanceCard($("balanceBox"), patient);  // Track B
 });
 load();
 </script>

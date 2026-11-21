@@ -186,8 +186,11 @@ def seed() -> None:
         with clinic._conn() as c:
             c.execute("UPDATE prescriptions SET status = 'filled', sent_at = ?, updated_at = ? WHERE id = ?", (sent, sent, rx))
 
-    from . import portal  # Track B: clears + seeds patient messages (no stale rows after "Reset demo data")
+    from . import eligibility, ledger, portal, reminders  # Track B: clears + seeds its tables (no stale rows after "Reset demo data")
     portal.seed(ids)
+    eligibility.seed()  # overnight insurance check for today + tomorrow
+    ledger.seed(ids)  # copays paid at past visits
+    reminders.seed()  # reminder emails sent last evening for today (some confirmed)
 
     from . import labs  # Track A3: lab history + results waiting for review in the Clinical Inbox
     labs.seed(ids)

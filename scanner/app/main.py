@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from . import ambient, billing, clinic, config, crm, epcs, labs, reader, seed, summary, validate
-from . import portal  # Track B
+from . import eligibility, ledger, portal, reminders  # Track B
 from .camera import Camera, list_cameras, pick_camera
 from .ambient import router as ambient_router
 from .billing_api import router as billing_router
@@ -23,6 +23,9 @@ from .inbox import router as inbox_router
 from .summary import router as summary_router
 from .labs import router as labs_router
 from .portal import router as portal_router  # Track B
+from .eligibility import router as eligibility_router  # Track B
+from .ledger import router as ledger_router  # Track B
+from .reminders import router as reminders_router  # Track B
 from .events import broadcast, subscribers
 
 settings = {"auto_capture": True, "auto_accept": False}
@@ -78,6 +81,9 @@ async def lifespan(app: FastAPI):
     labs.init()
     summary.init()
     portal.init()  # Track B
+    eligibility.init()  # Track B
+    ledger.init()  # Track B
+    reminders.init()  # Track B
     if clinic.is_empty():
         seed.seed()
     camera = Camera(pick_camera(config.CAMERA_NAME, config.CAMERA_INDEX), on_camera_capture)
@@ -97,6 +103,9 @@ app.include_router(inbox_router)
 app.include_router(caregaps_router)
 app.include_router(summary_router)
 app.include_router(portal_router)  # Track B
+app.include_router(eligibility_router)  # Track B
+app.include_router(ledger_router)  # Track B
+app.include_router(reminders_router)  # Track B
 app.mount("/scans", StaticFiles(directory=config.SCANS_DIR), name="scans")
 app.mount("/static", StaticFiles(directory=config.WEB_DIR / "static"), name="static")
 
@@ -106,7 +115,7 @@ PAGES = {
     "/schedule": "schedule.html", "/visit": "visit.html", "/pharmacy": "pharmacy.html",
     "/inbox": "inbox.html", "/billing": "billing.html", "/claim-form": "claim-form.html", "/savings": "savings.html",
     "/scan": "scanner.html", "/crm": "crm.html",
-    "/portal": "portal.html",  # Track B
+    "/portal": "portal.html", "/statement": "statement.html",  # Track B
 }
 
 

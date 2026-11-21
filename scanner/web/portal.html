@@ -122,6 +122,7 @@
 <div id="app"><div class="empty">Loading…</div></div>
 
 <script src="/static/shell.js"></script>
+<script src="/static/payments.js"></script>
 <script>
 // Patient-facing page: uses the shell helpers (api, esc, toast, openModal, onEvent) but not the staff nav.
 $("brandName").textContent = `${PRODUCT_NAME} · Patient Portal`;
@@ -133,14 +134,14 @@ const SECTIONS = [
   ["billing", "💵", "Billing"],
 ];
 const KIND_LABEL = { message: "Message", refill_request: "Refill request", appointment_request: "Appointment request" };
-const APPT_STATUS = { booked: ["Confirmed", "green"], checked_in: ["Checked in", "blue"], in_visit: ["With your provider", "blue"],
+const APPT_STATUS = { booked: ["Scheduled", "blue"], checked_in: ["Checked in", "blue"], in_visit: ["With your provider", "blue"],
                       completed: ["Completed", ""], cancelled: ["Cancelled", "red"], no_show: ["Missed", "red"] };
 const VISIT_TYPES = { follow_up: "Follow-up visit", sick: "Sick visit (new problem)", new: "Annual physical / check-up" };
 const TIME_OF_DAY = { any: "Any time", morning: "Morning (8 AM-12 PM)", afternoon: "Afternoon (12-5 PM)", evening: "Evening (5-7 PM)" };
 
 const params = new URLSearchParams(location.search);
 const patientId = Number(params.get("patient")) || null;
-let view = null, ref = null, results = null, resultsAvailable = false;
+let view = null, ref = null, results = null, resultsAvailable = false, bill = null;
 let openThreads = new Set();
 
 const section = () => { const s = location.hash.slice(1); return SECTIONS.some(([k]) => k === s) ? s : "home"; };
@@ -172,7 +173,7 @@ async function renderPicker() {
 // ---------- data ----------
 async function load() {
   try {
-    [view, ref] = await Promise.all([api(`/api/portal/${patientId}`), reference()]);
+    [view, ref, bill] = await Promise.all([api(`/api/portal/${patientId}`), reference(), api(`/api/patients/${patientId}/balance`)]);
   } catch (e) {
     $("app").innerHTML = `<div class="picker"><div class="box">${esc(e.message)}. <a href="/portal">Choose another patient</a></div></div>`;
     return;
@@ -195,11 +196,42 @@ let _reloadTimer = null;
 function reloadSoon() { clearTimeout(_reloadTimer); _reloadTimer = setTimeout(load, 250); }
 
 // ---------- layout ----------
+// Live updates re-render the page; keep what the patient is typing (open message box, drafts, form choices,
+// focus, scroll) so a reply arriving mid-sentence doesn't wipe their text. Senders clear their fields on success.
+function captureDrafts() {
+  const main = document.getElementById("main");
+  if (!main) return null;
+  const vals = {};
+  main.querySelectorAll("input[id], textarea[id], select[id]").forEach((el) => { vals[el.id] = el.value; });
+  const replies = {};
+  main.querySelectorAll(".thread").forEach((th) => { const ta = th.querySelector("textarea"); if (ta && ta.value) replies[th.dataset.root] = ta.value; });
+  const box = document.getElementById("composeBox");
+  return { section: section(), vals, replies, compose: !!(box && !box.hidden),
+           focus: document.activeElement && document.activeElement.id, scroll: window.scrollY };
+}
+function restoreDrafts(d) {
+  if (!d || d.section !== section()) return;
+  if (d.compose && $("composeBox")) $("composeBox").hidden = false;
+  for (const [id, v] of Object.entries(d.vals)) { const el = document.getElementById(id); if (el && el.value !== v) el.value = v; }
+  for (const [root, v] of Object.entries(d.replies)) {
+    const th = document.querySelector(`.thread[data-root="${root}"]`);
+    if (th) { th.querySelector(".th-body").hidden = false; openThreads.add(Number(root)); th.querySelector("textarea").value = v; }
+  }
+  if (d.focus && document.getElementById(d.focus)) document.getElementById(d.focus).focus();
+  window.scrollTo(0, d.scroll);
+}
+
 function render() {
+  const drafts = captureDrafts();
+  renderPage();
+  restoreDrafts(drafts);
+}
+
+function renderPage() {
   const p = view.patient;
   $("who").innerHTML = `<span>👤 ${esc(p.first_name)} ${esc(p.last_name)}</span><a href="/portal">Switch patient</a>`;
   const cur = section();
-  const badge = { messages: view.unread, results: newResults().length };
+  const badge = { messages: view.unread, results: newResults().length, billing: bill.due > 0 ? "$" : 0 };
   $("app").innerHTML = `<div class="pt-wrap">
     <nav class="side">${SECTIONS.map(([k, ic, label]) => `<a href="#${k}" class="${k === cur ? "active" : ""}">
       <span class="ic">${ic}</span>${label}${badge[k] ? `<span class="count">${badge[k]}</span>` : ""}</a>`).join("")}</nav>
@@ -207,7 +239,7 @@ function render() {
   ({ home: renderHome, appointments: renderAppointments, messages: renderMessages, medications: renderMedications,
      results: renderResults, visits: renderVisits, billing: renderBilling })[cur]($("main"));
 }
-window.addEventListener("hashchange", () => { if (view) { render(); window.scrollTo(0, 0); } });
+window.addEventListener("hashchange", () => { if (view) { renderPage(); window.scrollTo(0, 0); } });   // new section: no drafts carried over
 
 // ---------- home ----------
 function renderHome(el) {
@@ -237,6 +269,10 @@ function renderHome(el) {
         <span class="big">${view.prescriptions.length} prescription${view.prescriptions.length === 1 ? "" : "s"}</span>
         <span class="muted small">${refills ? `${refills} refill request${refills > 1 ? "s" : ""} in progress` : "Running low? Request a refill online."}</span>
         <span class="act"><a class="btn small" href="#medications">Request a refill</a></span></div>
+      <div class="tile"><span class="lbl">Billing</span>
+        <span class="big">${bill.due > 0 ? `You owe ${usd(bill.due)}` : bill.credit ? `${usd(bill.credit)} credit` : "Nothing owed"}</span>
+        <span class="muted small">${bill.pending.length ? `${bill.pending.length} visit${bill.pending.length > 1 ? "s" : ""} still with your insurance.` : "Your share after insurance, explained."}</span>
+        <span class="act"><a class="btn small ${bill.due > 0 ? "pt" : ""}" href="#billing">${bill.due > 0 ? "Pay now" : "View billing"}</a></span></div>
     </div>
     <div class="box"><h3>Your health record</h3>
       <div class="kv">
@@ -250,14 +286,33 @@ function renderHome(el) {
 }
 
 // ---------- appointments ----------
-function apptRow(a) {
+function apptRow(a, upcoming = false) {
   const d = new Date(a.start), [label, cls] = APPT_STATUS[a.status] || [a.status, ""];
+  // Upcoming + booked: the patient can confirm (or say they can't make it), like the links in the reminder email.
+  const answer = upcoming && a.status === "booked" ? (a.confirmation === "confirmed" ? '<span class="badge green">✓ You confirmed</span>'
+    : a.confirmation === "reschedule" ? '<span class="badge amber">Reschedule requested</span>'
+    : `<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn small pt" data-confirm="${a.id}">Confirm</button>
+       <button class="btn small" data-cant="${a.id}">Can't make it</button></span>`) : `<span class="badge ${cls}">${label}</span>`;
   return `<div class="appt">
     <div class="cal"><div class="m">${d.toLocaleDateString("en-US", { month: "short" })}</div><div class="d">${d.getDate()}</div>
       <div class="w">${d.toLocaleDateString("en-US", { weekday: "short" })}</div></div>
     <div class="info"><div class="t">${timeOf(a.start)} · ${esc(a.provider_name)}</div>
-      <div class="muted small">${esc(a.reason || "Office visit")} · ${a.duration_min} min · 1701 10th St, Plano TX</div></div>
-    <span class="badge ${cls}">${label}</span></div>`;
+      <div class="muted small">${esc(a.reason || "Office visit")} · ${a.duration_min} min · 100 Example Pkwy, Plano TX</div></div>
+    ${answer}</div>`;
+}
+
+function wireConfirmButtons(el) {
+  const answer = async (id, response, btn) => {
+    btn.disabled = true;
+    try {
+      await api(`/api/appointments/${id}/confirm`, { method: "POST", body: { response, via: "portal" } });
+      toast(response === "confirmed" ? "Thanks, your appointment is confirmed ✓" : "Got it. The front desk will contact you to find a new time.");
+      await load();
+    } catch (e) { toast(e.message, "error"); btn.disabled = false; }
+  };
+  el.querySelectorAll("[data-confirm]").forEach((b) => b.onclick = () => answer(Number(b.dataset.confirm), "confirmed", b));
+  el.querySelectorAll("[data-cant]").forEach((b) => b.onclick = () =>
+    confirm("Let the clinic know you can't make this appointment? The front desk will contact you to reschedule.") && answer(Number(b.dataset.cant), "reschedule", b));
 }
 
 function renderAppointments(el) {
@@ -267,7 +322,7 @@ function renderAppointments(el) {
   el.innerHTML = `
     <div class="sec-title"><h2>Appointments</h2></div>
     <div class="box"><h3>Upcoming</h3>
-      ${view.upcoming.length ? view.upcoming.map(apptRow).join("") : '<p class="muted" style="margin:0">No upcoming appointments.</p>'}
+      ${view.upcoming.length ? view.upcoming.map((a) => apptRow(a, true)).join("") : '<p class="muted" style="margin:0">No upcoming appointments.</p>'}
       ${view.upcoming.length ? '<p class="muted small" style="margin:10px 0 0">Need to cancel or reschedule? Send us a message or call (972) 555-0100.</p>' : ""}
     </div>
     ${reqs.length ? `<div class="box"><h3>Your requests</h3>${reqs.map((m) => `
@@ -288,6 +343,7 @@ function renderAppointments(el) {
     </div>
     ${view.past_appointments.length ? `<div class="box"><h3>Past appointments</h3>${view.past_appointments.map(apptRow).join("")}</div>` : ""}`;
 
+  wireConfirmButtons(el);
   $("rqSend").onclick = async () => {
     const body = { visit_type: $("rqType").value, provider_id: $("rqProv").value ? Number($("rqProv").value) : null,
                    preferred_date: $("rqDate").value, time_of_day: $("rqTime").value, reason: $("rqReason").value.trim() };
@@ -297,6 +353,7 @@ function renderAppointments(el) {
     try {
       await api(`/api/portal/${patientId}/appointment-requests`, { method: "POST", body });
       toast("Request sent ✓ The front desk will confirm a time.");
+      $("rqReason").value = "";          // sent: don't keep it as a draft
       await load();
     } catch (e) { $("rqErr").textContent = e.message; $("rqSend").disabled = false; }
   };
@@ -356,6 +413,8 @@ function renderMessages(el) {
       const m = await api(`/api/portal/${patientId}/messages`, { method: "POST", body: { subject, body } });
       openThreads.add(m.id);
       toast("Message sent ✓");
+      $("cmSubj").value = $("cmBody").value = "";   // sent: close the box, no draft
+      $("composeBox").hidden = true;
       await load();
     } catch (e) { $("cmErr").textContent = e.message; $("cmSend").disabled = false; }
   };
@@ -375,6 +434,7 @@ function renderMessages(el) {
           body: { subject: subj.startsWith("Re: ") ? subj : "Re: " + subj, body: ta.value.trim(), reply_to: root } });
         openThreads.add(root);
         toast("Reply sent ✓");
+        ta.value = "";
         await load();
       } catch (e) { toast(e.message, "error"); btn.disabled = false; }
     };
@@ -490,9 +550,35 @@ function renderVisits(el) {
 
 // ---------- billing (Track B task 3: balances + online payment) ----------
 function renderBilling(el) {
-  el.innerHTML = `<div class="sec-title"><h2>Billing</h2></div>
-    <div class="box"><h3>Online bill pay</h3>
-      <p class="muted" style="margin:0">Coming soon: see what you owe after insurance, and pay your bill online.</p></div>`;
+  const b = bill;
+  el.innerHTML = `<div class="sec-title"><h2>Billing</h2>
+      <a class="btn" href="/statement?patient_id=${patientId}" target="_blank">📄 View statement</a></div>
+    <div class="box" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px"><div class="muted small" style="font-weight:700;text-transform:uppercase;letter-spacing:.5px">
+        ${b.due > 0 ? "Amount due" : b.credit ? "Credit on your account" : "Your balance"}</div>
+        <div style="font-size:30px;font-weight:800;color:${b.due > 0 ? "var(--missing)" : "var(--ok)"}">${usd(b.credit || b.due)}</div>
+        <div class="muted small">${b.due > 0 ? `Please pay by ${fmtDate(b.due_date)}.` : b.credit ? "We'll use it toward your next visit." : "You're all paid up. Thank you!"}</div></div>
+      ${b.due > 0 ? `<button class="btn pt" id="payNow" style="font-size:16px;padding:10px 22px">Pay ${usd(b.due)}</button>` : ""}
+    </div>
+    ${b.visits.length ? `<div class="box"><h3>Your visits after insurance</h3>
+      ${b.visits.slice().reverse().map((v) => `<div class="appt">
+        <div class="info"><div class="t">${fmtDate(v.dos)} · ${esc(v.provider || "Office visit")}</div>
+          <div class="muted small">Billed ${usd(v.billed)} · ${v.payer ? `${esc(v.payer)} paid ${usd(v.insurance_paid)} · plan discount ${usd(v.adjustment)}` : `self-pay discount ${usd(v.adjustment)}`}</div></div>
+        <div style="text-align:right"><div class="t">${usd(v.amount)}</div><div class="muted small">your share</div></div></div>`).join("")}
+      <p class="muted small" style="margin:10px 0 0">Your share is your copay or coinsurance. Discounts and anything your insurance denied are not billed to you.</p></div>` : ""}
+    ${b.pending.length ? `<div class="box"><h3>Waiting for your insurance</h3>${b.pending.map((x) => `<div class="appt"><div class="info">
+      <div class="t">${fmtDate(x.dos)} · ${esc(x.provider || "Office visit")}</div><div class="muted small">${esc(x.description)}</div></div>
+      <span class="badge amber">Not billed yet</span></div>`).join("")}</div>` : ""}
+    <div class="box"><h3>Payments</h3>
+      ${b.payments.length ? b.payments.map((x) => `<div class="appt"><div class="info">
+        <div class="t">${usd(x.amount)} · ${x.kind === "copay" ? "Copay" : "Payment"}</div>
+        <div class="muted small">${fmtDate(x.created_at.slice(0, 10))} · ${x.method === "card" ? `${esc(x.card_brand)} •••• ${esc(x.card_last4)}` : x.method === "check" ? "Check" : "Cash"}
+          ${x.source === "portal" ? " · paid online" : x.source === "check_in" ? " · at check-in" : ""} · receipt ${esc(x.receipt)}</div></div>
+        <span class="badge green">Paid</span></div>`).join("") : '<p class="muted" style="margin:0">No payments yet.</p>'}</div>`;
+  const pay = el.querySelector("#payNow");
+  if (pay) pay.onclick = () => openPaymentModal({ patient: view.patient, amount: b.due, maxAmount: b.due, methods: ["card"],
+    source: "portal", title: "Pay your bill", note: "Secure demo payment: no real card is charged.",
+    onPaid: () => { toast("Payment received. Thank you! ✓"); load(); } });
 }
 
 // ---------- live updates ----------

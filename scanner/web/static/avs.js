@@ -24,8 +24,8 @@ function setupAvs(box, { encId, patientName }) {
         <p class="muted small" style="margin:4px 0 10px">${st.signed ? "No summary yet." : "The AI drafts this automatically when you sign the visit. You can also draft it now."}</p>
         <div class="avs-actions">${langSel}<button class="btn primary small" id="avsDraft" type="button">✨ Draft summary</button>
           <button class="btn small" id="avsManual" type="button">Write it myself</button></div>`;
-      $("avsDraft").onclick = draft;
-      $("avsManual").onclick = () => { st.draft = " "; st.status = "draft"; render(); $("avsText").value = ""; $("avsText").focus(); };
+      box.querySelector("#avsDraft").onclick = draft;
+      box.querySelector("#avsManual").onclick = () => { st.draft = " "; st.status = "draft"; render(); box.querySelector("#avsText").value = ""; box.querySelector("#avsText").focus(); };
       return;
     }
     box.innerHTML = `${head}
@@ -39,20 +39,20 @@ function setupAvs(box, { encId, patientName }) {
         <button class="btn small" id="avsPrint" type="button">🖨 Print</button>
         <span class="sp"></span>${langSel}<button class="btn small" id="avsDraft" type="button">✨ Re-draft</button></div>
       ${st.signed ? "" : '<div class="muted small" style="margin-top:6px">Sign the visit to send it.</div>'}`;
-    $("avsDraft").onclick = () => {
-      if ($("avsText").value.trim() !== (text || "").trim() && !confirm("Replace your edits with a new AI draft?")) return;
+    box.querySelector("#avsDraft").onclick = () => {
+      if (box.querySelector("#avsText").value.trim() !== (text || "").trim() && !confirm("Replace your edits with a new AI draft?")) return;
       draft();
     };
-    $("avsSend").onclick = send;
-    $("avsPrint").onclick = () => {
+    box.querySelector("#avsSend").onclick = send;
+    box.querySelector("#avsPrint").onclick = () => {
       const w = window.open("", "_blank");
-      w.document.write(`<title>After-visit summary</title><body style="font:15px/1.5 system-ui,sans-serif;max-width:680px;margin:32px auto;white-space:pre-wrap"${st.language === "Arabic" || st.language === "Urdu" ? ' dir="rtl"' : ""}><h2>Plano Community Clinic: after-visit summary</h2><p>${esc(patientName)}</p>${esc($("avsText").value)}</body>`);
+      w.document.write(`<title>After-visit summary</title><body style="font:15px/1.5 system-ui,sans-serif;max-width:680px;margin:32px auto;white-space:pre-wrap"${st.language === "Arabic" || st.language === "Urdu" ? ' dir="rtl"' : ""}><h2>Plano Community Clinic: after-visit summary</h2><p>${esc(patientName)}</p>${esc(box.querySelector("#avsText").value)}</body>`);
       w.document.close(); w.print();
     };
   }
 
   async function draft() {
-    const language = $("avsLang").value;
+    const language = box.querySelector("#avsLang").value;
     busy = true; render();
     try {
       const r = await api(`/api/encounters/${encId}/summary/draft`, { method: "POST", body: { language } });
@@ -63,9 +63,9 @@ function setupAvs(box, { encId, patientName }) {
   }
 
   async function send() {
-    const b = $("avsSend"); b.disabled = true;
+    const b = box.querySelector("#avsSend"); b.disabled = true;
     try {
-      st = await api(`/api/encounters/${encId}/summary/send`, { method: "POST", body: { text: $("avsText").value } });
+      st = await api(`/api/encounters/${encId}/summary/send`, { method: "POST", body: { text: box.querySelector("#avsText").value } });
       toast(`Summary sent to ${patientName}'s portal ✓`);
       render();
     } catch (e) { toast(e.message, "error"); b.disabled = false; }

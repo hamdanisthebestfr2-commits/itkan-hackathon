@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Patient statement</title>
+<link rel="stylesheet" href="/static/app.css">
+<style>
+  body { background: #e9edf2; }
+  .bar { max-width: 816px; margin: 16px auto 0; display: flex; gap: 8px; align-items: center; padding: 0 16px; }
+  .bar .sp { flex: 1; }
+  .sheet { max-width: 816px; margin: 12px auto 40px; background: #fff; padding: 44px 52px; box-shadow: 0 4px 24px rgba(0,0,0,.12); font-size: 13.5px; color: #1b2430; }
+  .demo { text-align: center; font-size: 11px; font-weight: 700; letter-spacing: .6px; color: #9a6b00; background: #fff7e0; border: 1px solid #f0dfa8; padding: 4px; margin: -20px -24px 22px; border-radius: 4px; }
+  .top { display: flex; justify-content: space-between; gap: 24px; }
+  .clinic b { font-size: 18px; color: var(--brand); } .clinic div { color: #4a5565; }
+  .stmt { text-align: right; }
+  .stmt h1 { margin: 0 0 6px; font-size: 22px; letter-spacing: 2px; color: #4a5565; }
+  .stmt table td { padding: 1px 0 1px 14px; } .stmt table td:first-child { color: #6b7685; }
+  .due-box { display: flex; justify-content: space-between; align-items: center; border: 2px solid var(--brand); border-radius: 8px; padding: 12px 16px; margin: 22px 0; }
+  .due-box .amt { font-size: 28px; font-weight: 800; }
+  .to { margin-top: 22px; line-height: 1.5; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: #6b7685; margin: 24px 0 6px; border-bottom: 1px solid #dfe3e9; padding-bottom: 4px; }
+  table.items { width: 100%; border-collapse: collapse; }
+  table.items th { text-align: right; font-size: 11px; color: #6b7685; font-weight: 600; padding: 4px 6px; border-bottom: 1px solid #dfe3e9; }
+  table.items th:first-child, table.items th:nth-child(2) { text-align: left; }
+  table.items td { padding: 5px 6px; text-align: right; vertical-align: top; white-space: nowrap; }
+  table.items td.d { text-align: left; white-space: normal; }
+  table.items tr.visit td { font-weight: 700; border-top: 1px solid #dfe3e9; padding-top: 8px; }
+  table.items tr.line td { color: #4a5565; font-size: 12.5px; }
+  table.items tr.note td { color: #6b7685; font-size: 11.5px; padding-top: 0; }
+  table.items tr.total td { font-weight: 800; border-top: 2px solid #1b2430; }
+  .msg { margin-top: 18px; padding: 10px 14px; background: #f5f8fd; border-radius: 6px; font-size: 12.5px; }
+  .slip { margin-top: 30px; border-top: 2px dashed #9aa4b2; padding-top: 14px; display: flex; justify-content: space-between; gap: 24px; font-size: 12.5px; }
+  .slip .cut { font-size: 11px; color: #6b7685; text-align: center; margin-top: -24px; margin-bottom: 10px; }
+  .slip table td { padding: 3px 10px 3px 0; } .slip .line { display: inline-block; width: 120px; border-bottom: 1px solid #1b2430; }
+  @media print {
+    body { background: #fff; } .bar { display: none; }
+    .sheet { box-shadow: none; margin: 0; max-width: none; padding: 0; }
+    @page { margin: 0.6in; }
+  }
+  @media (max-width: 700px) { .sheet { padding: 24px 18px; } .demo { margin: -8px 0 16px; } .top { flex-direction: column; } .stmt { text-align: left; }
+    table.items { font-size: 12px; } .slip { flex-direction: column; } }
+</style>
+</head>
+<body>
+<div class="bar"><a href="javascript:history.back()" class="btn small">← Back</a><span class="sp"></span>
+  <button class="btn primary" onclick="window.print()">🖨 Print statement</button></div>
+<div class="sheet" id="sheet"><div class="empty">Loading…</div></div>
+
+<script src="/static/shell.js"></script>
+<script>
+const CLINIC = { name: "Plano Community Clinic", line1: "100 Example Pkwy, Suite 200", line2: "Plano, TX 75074 (demo address)",
+                 phone: "(972) 555-0100", hours: "Mon-Fri 8 AM-5 PM" };
+const pid = Number(new URLSearchParams(location.search).get("patient_id"));
+const usd = (n) => (n < 0 ? "-" : "") + "$" + Math.abs(Number(n)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+async function load() {
+  let p, b;
+  try { [p, b] = await Promise.all([api(`/api/patients/${pid}`), api(`/api/patients/${pid}/balance`)]); }
+  catch (e) { $("sheet").innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  document.title = `Statement · ${p.first_name} ${p.last_name}`;
+  const owed = b.due > 0;
+  $("sheet").innerHTML = `
+  <div class="demo">DEMO STATEMENT · FICTIONAL PATIENT · NOT A REAL BILL</div>
+  <div class="top">
+    <div class="clinic"><b>✚ ${esc(CLINIC.name)}</b><div>${esc(CLINIC.line1)}<br>${esc(CLINIC.line2)}<br>${esc(CLINIC.phone)}</div></div>
+    <div class="stmt"><h1>STATEMENT</h1><table>
+      <tr><td>Statement date</td><td><b>${fmtDate(b.statement_date)}</b></td></tr>
+      <tr><td>Account #</td><td><b>${esc(p.mrn)}</b></td></tr>
+      <tr><td>Insurance</td><td>${esc(p.payer_name || "None on file")}</td></tr>
+    </table></div>
+  </div>
+  <div class="to"><b>${esc(p.first_name)} ${esc(p.last_name)}</b><br>${esc(p.address || "")}<br>
+    ${[p.city, p.state].filter(Boolean).map(esc).join(", ")} ${esc(p.zip || "")}</div>
+
+  <div class="due-box">
+    <div><div style="font-weight:700">${owed ? "Amount due" : b.credit ? "Credit on your account" : "Balance"}</div>
+      <div class="muted small">${owed ? `Please pay by ${fmtDate(b.due_date)}` : b.credit ? "We'll apply it to your next visit" : "Thank you, nothing is owed"}</div></div>
+    <div class="amt">${usd(b.credit ? b.credit : b.due)}</div>
+  </div>
+
+  <h2>Visits and what insurance paid</h2>
+  ${b.visits.length ? `<table class="items">
+    <thead><tr><th>Date</th><th>Description</th><th>Charges</th><th>Insurance paid</th><th>Adjustments</th><th>You owe</th></tr></thead><tbody>
+    ${b.visits.map((v) => `
+      <tr class="visit"><td class="d">${fmtDate(v.dos)}</td><td class="d">Office visit · ${esc(v.provider || "")}${v.payer ? ` · billed to ${esc(v.payer)}` : " · self-pay"}</td>
+        <td>${usd(v.billed)}</td><td>${usd(v.insurance_paid)}</td><td>${usd(-v.adjustment)}</td><td>${usd(v.amount)}</td></tr>
+      ${v.lines.map((l) => `<tr class="line"><td></td><td class="d">${esc(l.code)} ${esc(l.description)}</td>
+        <td>${usd(l.charge)}</td><td>${usd(l.insurance_paid)}</td><td>${usd(-l.adjustment)}</td><td>${usd(l.patient_resp)}</td></tr>
+        ${l.note ? `<tr class="note"><td></td><td class="d" colspan="5">${esc(l.note)}</td></tr>` : ""}`).join("")}`).join("")}
+    <tr class="total"><td></td><td class="d">Your share of these visits</td><td></td><td></td><td></td><td>${usd(b.charges_total)}</td></tr>
+    </tbody></table>` : '<p class="muted">No billed visits.</p>'}
+
+  <h2>Payments received</h2>
+  ${b.payments.length ? `<table class="items"><tbody>
+    ${b.payments.slice().reverse().map((x) => `<tr><td class="d" style="width:110px">${fmtDate(x.created_at.slice(0, 10))}</td>
+      <td class="d">${x.kind === "copay" ? "Copay" : "Payment"} · ${x.method === "card" ? `${esc(x.card_brand)} •••• ${esc(x.card_last4)}` : x.method === "check" ? `Check #${esc(x.check_number)}` : "Cash"} · receipt ${esc(x.receipt)}</td>
+      <td>${usd(-x.amount)}</td></tr>`).join("")}
+    <tr class="total"><td></td><td class="d">Total payments</td><td>${usd(-b.payments_total)}</td></tr>
+    </tbody></table>` : '<p class="muted">No payments yet.</p>'}
+
+  ${b.pending.length ? `<h2>Still with your insurance (not billed to you yet)</h2><table class="items"><tbody>
+    ${b.pending.map((x) => `<tr><td class="d" style="width:110px">${fmtDate(x.dos)}</td><td class="d">${esc(x.description)}</td><td>${usd(x.billed)} billed</td></tr>`).join("")}
+    </tbody></table>` : ""}
+
+  <div class="msg">Questions about this bill? Call us at <b>${esc(CLINIC.phone)}</b> (${esc(CLINIC.hours)}).
+    <b>Pay online</b> any time in the patient portal. "Adjustments" are discounts your insurance plan negotiated, or charges
+    the clinic won't bill you for. You never owe them.</div>
+
+  <div class="slip">
+    <div><b>Please return this part with your payment</b><br>${esc(CLINIC.name)} · ${esc(CLINIC.line1)}, ${esc(CLINIC.line2)}<br><br>
+      ${esc(p.first_name)} ${esc(p.last_name)} · Account ${esc(p.mrn)}</div>
+    <table><tr><td>Amount due</td><td><b>${usd(b.due)}</b></td></tr>
+      <tr><td>Due by</td><td>${owed ? fmtDate(b.due_date) : "-"}</td></tr>
+      <tr><td>Amount enclosed</td><td><span class="line"></span></td></tr></table>
+  </div>`;
+}
+load();
+</script>
+</body>
+</html>
