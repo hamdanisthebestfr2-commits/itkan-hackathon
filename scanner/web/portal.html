@@ -134,7 +134,7 @@ const SECTIONS = [
   ["billing", "💵", "Billing"],
 ];
 const KIND_LABEL = { message: "Message", refill_request: "Refill request", appointment_request: "Appointment request" };
-const APPT_STATUS = { booked: ["Confirmed", "green"], checked_in: ["Checked in", "blue"], in_visit: ["With your provider", "blue"],
+const APPT_STATUS = { booked: ["Scheduled", "blue"], checked_in: ["Checked in", "blue"], in_visit: ["With your provider", "blue"],
                       completed: ["Completed", ""], cancelled: ["Cancelled", "red"], no_show: ["Missed", "red"] };
 const VISIT_TYPES = { follow_up: "Follow-up visit", sick: "Sick visit (new problem)", new: "Annual physical / check-up" };
 const TIME_OF_DAY = { any: "Any time", morning: "Morning (8 AM-12 PM)", afternoon: "Afternoon (12-5 PM)", evening: "Evening (5-7 PM)" };
@@ -196,7 +196,38 @@ let _reloadTimer = null;
 function reloadSoon() { clearTimeout(_reloadTimer); _reloadTimer = setTimeout(load, 250); }
 
 // ---------- layout ----------
+// Live updates re-render the page; keep what the patient is typing (open message box, drafts, form choices,
+// focus, scroll) so a reply arriving mid-sentence doesn't wipe their text. Senders clear their fields on success.
+function captureDrafts() {
+  const main = document.getElementById("main");
+  if (!main) return null;
+  const vals = {};
+  main.querySelectorAll("input[id], textarea[id], select[id]").forEach((el) => { vals[el.id] = el.value; });
+  const replies = {};
+  main.querySelectorAll(".thread").forEach((th) => { const ta = th.querySelector("textarea"); if (ta && ta.value) replies[th.dataset.root] = ta.value; });
+  const box = document.getElementById("composeBox");
+  return { section: section(), vals, replies, compose: !!(box && !box.hidden),
+           focus: document.activeElement && document.activeElement.id, scroll: window.scrollY };
+}
+function restoreDrafts(d) {
+  if (!d || d.section !== section()) return;
+  if (d.compose && $("composeBox")) $("composeBox").hidden = false;
+  for (const [id, v] of Object.entries(d.vals)) { const el = document.getElementById(id); if (el && el.value !== v) el.value = v; }
+  for (const [root, v] of Object.entries(d.replies)) {
+    const th = document.querySelector(`.thread[data-root="${root}"]`);
+    if (th) { th.querySelector(".th-body").hidden = false; openThreads.add(Number(root)); th.querySelector("textarea").value = v; }
+  }
+  if (d.focus && document.getElementById(d.focus)) document.getElementById(d.focus).focus();
+  window.scrollTo(0, d.scroll);
+}
+
 function render() {
+  const drafts = captureDrafts();
+  renderPage();
+  restoreDrafts(drafts);
+}
+
+function renderPage() {
   const p = view.patient;
   $("who").innerHTML = `<span>👤 ${esc(p.first_name)} ${esc(p.last_name)}</span><a href="/portal">Switch patient</a>`;
   const cur = section();
@@ -208,7 +239,7 @@ function render() {
   ({ home: renderHome, appointments: renderAppointments, messages: renderMessages, medications: renderMedications,
      results: renderResults, visits: renderVisits, billing: renderBilling })[cur]($("main"));
 }
-window.addEventListener("hashchange", () => { if (view) { render(); window.scrollTo(0, 0); } });
+window.addEventListener("hashchange", () => { if (view) { renderPage(); window.scrollTo(0, 0); } });   // new section: no drafts carried over
 
 // ---------- home ----------
 function renderHome(el) {
@@ -255,14 +286,33 @@ function renderHome(el) {
 }
 
 // ---------- appointments ----------
-function apptRow(a) {
+function apptRow(a, upcoming = false) {
   const d = new Date(a.start), [label, cls] = APPT_STATUS[a.status] || [a.status, ""];
+  // Upcoming + booked: the patient can confirm (or say they can't make it), like the links in the reminder email.
+  const answer = upcoming && a.status === "booked" ? (a.confirmation === "confirmed" ? '<span class="badge green">✓ You confirmed</span>'
+    : a.confirmation === "reschedule" ? '<span class="badge amber">Reschedule requested</span>'
+    : `<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn small pt" data-confirm="${a.id}">Confirm</button>
+       <button class="btn small" data-cant="${a.id}">Can't make it</button></span>`) : `<span class="badge ${cls}">${label}</span>`;
   return `<div class="appt">
     <div class="cal"><div class="m">${d.toLocaleDateString("en-US", { month: "short" })}</div><div class="d">${d.getDate()}</div>
       <div class="w">${d.toLocaleDateString("en-US", { weekday: "short" })}</div></div>
     <div class="info"><div class="t">${timeOf(a.start)} · ${esc(a.provider_name)}</div>
       <div class="muted small">${esc(a.reason || "Office visit")} · ${a.duration_min} min · 100 Example Pkwy, Plano TX</div></div>
-    <span class="badge ${cls}">${label}</span></div>`;
+    ${answer}</div>`;
+}
+
+function wireConfirmButtons(el) {
+  const answer = async (id, response, btn) => {
+    btn.disabled = true;
+    try {
+      await api(`/api/appointments/${id}/confirm`, { method: "POST", body: { response, via: "portal" } });
+      toast(response === "confirmed" ? "Thanks, your appointment is confirmed ✓" : "Got it. The front desk will contact you to find a new time.");
+      await load();
+    } catch (e) { toast(e.message, "error"); btn.disabled = false; }
+  };
+  el.querySelectorAll("[data-confirm]").forEach((b) => b.onclick = () => answer(Number(b.dataset.confirm), "confirmed", b));
+  el.querySelectorAll("[data-cant]").forEach((b) => b.onclick = () =>
+    confirm("Let the clinic know you can't make this appointment? The front desk will contact you to reschedule.") && answer(Number(b.dataset.cant), "reschedule", b));
 }
 
 function renderAppointments(el) {
@@ -272,7 +322,7 @@ function renderAppointments(el) {
   el.innerHTML = `
     <div class="sec-title"><h2>Appointments</h2></div>
     <div class="box"><h3>Upcoming</h3>
-      ${view.upcoming.length ? view.upcoming.map(apptRow).join("") : '<p class="muted" style="margin:0">No upcoming appointments.</p>'}
+      ${view.upcoming.length ? view.upcoming.map((a) => apptRow(a, true)).join("") : '<p class="muted" style="margin:0">No upcoming appointments.</p>'}
       ${view.upcoming.length ? '<p class="muted small" style="margin:10px 0 0">Need to cancel or reschedule? Send us a message or call (972) 555-0100.</p>' : ""}
     </div>
     ${reqs.length ? `<div class="box"><h3>Your requests</h3>${reqs.map((m) => `
@@ -293,6 +343,7 @@ function renderAppointments(el) {
     </div>
     ${view.past_appointments.length ? `<div class="box"><h3>Past appointments</h3>${view.past_appointments.map(apptRow).join("")}</div>` : ""}`;
 
+  wireConfirmButtons(el);
   $("rqSend").onclick = async () => {
     const body = { visit_type: $("rqType").value, provider_id: $("rqProv").value ? Number($("rqProv").value) : null,
                    preferred_date: $("rqDate").value, time_of_day: $("rqTime").value, reason: $("rqReason").value.trim() };
@@ -302,6 +353,7 @@ function renderAppointments(el) {
     try {
       await api(`/api/portal/${patientId}/appointment-requests`, { method: "POST", body });
       toast("Request sent ✓ The front desk will confirm a time.");
+      $("rqReason").value = "";          // sent: don't keep it as a draft
       await load();
     } catch (e) { $("rqErr").textContent = e.message; $("rqSend").disabled = false; }
   };
@@ -361,6 +413,8 @@ function renderMessages(el) {
       const m = await api(`/api/portal/${patientId}/messages`, { method: "POST", body: { subject, body } });
       openThreads.add(m.id);
       toast("Message sent ✓");
+      $("cmSubj").value = $("cmBody").value = "";   // sent: close the box, no draft
+      $("composeBox").hidden = true;
       await load();
     } catch (e) { $("cmErr").textContent = e.message; $("cmSend").disabled = false; }
   };
@@ -380,6 +434,7 @@ function renderMessages(el) {
           body: { subject: subj.startsWith("Re: ") ? subj : "Re: " + subj, body: ta.value.trim(), reply_to: root } });
         openThreads.add(root);
         toast("Reply sent ✓");
+        ta.value = "";
         await load();
       } catch (e) { toast(e.message, "error"); btn.disabled = false; }
     };
