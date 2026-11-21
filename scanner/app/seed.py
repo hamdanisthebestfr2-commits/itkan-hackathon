@@ -182,3 +182,6 @@ def seed() -> None:
         sent = (datetime.now() - timedelta(days=days)).isoformat(timespec="seconds")
         with clinic._conn() as c:
             c.execute("UPDATE prescriptions SET status = 'filled', sent_at = ?, updated_at = ? WHERE id = ?", (sent, sent, rx))
+
+    from . import portal  # Track B: clears + seeds patient messages (no stale rows after "Reset demo data")
+    portal.seed(ids)
