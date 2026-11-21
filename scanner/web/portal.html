@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Patient Portal</title>
+<link rel="stylesheet" href="/static/app.css">
+<style>
+  :root { --pt: #0f766e; --pt-dark: #0b5952; --pt-bg: #e6f4f1; }
+  body { background: #f4f7f7; }
+  .pt-top { background: var(--pt); color: #fff; display: flex; align-items: center; gap: 14px; padding: 0 20px; height: 56px; }
+  .pt-top .brand { font-weight: 700; font-size: 17px; display: flex; align-items: center; gap: 8px; color: #fff; text-decoration: none; }
+  .pt-top .brand .mark { background: #fff; color: var(--pt); width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; }
+  .pt-top .tag { font-size: 12px; opacity: .8; }
+  .pt-top .sp { flex: 1; }
+  .pt-top .who { font-size: 14px; display: flex; align-items: center; gap: 10px; }
+  .pt-top .who a, .pt-top .staff { color: #fff; opacity: .85; font-size: 13px; }
+  .demo-strip { background: #fff7e0; color: #7a5300; font-size: 12px; text-align: center; padding: 4px 12px; border-bottom: 1px solid #f0dfa8; }
+
+  .pt-wrap { max-width: 1120px; margin: 0 auto; padding: 20px; display: grid; grid-template-columns: 210px 1fr; gap: 20px; align-items: start; }
+  .pt-wrap > * { min-width: 0; }  /* lets the phone tab bar scroll inside its row instead of widening the page */
+  .side { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 2px; }
+  .side a { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 9px; color: var(--text); text-decoration: none; font-size: 15px; }
+  .side a:hover { background: #e9efef; }
+  .side a.active { background: var(--pt-bg); color: var(--pt-dark); font-weight: 600; }
+  .side .ic { width: 20px; text-align: center; }
+  .side .count { margin-left: auto; background: #d92d20; color: #fff; border-radius: 999px; font-size: 11px; font-weight: 700; padding: 1px 7px; }
+
+  h1.hello { font-size: 26px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 18px; }
+  .sec-title { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; }
+  .sec-title h2 { margin: 0; font-size: 21px; flex: 1; }
+  .box { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 16px; }
+  .box h3 { margin: 0 0 10px; font-size: 15px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; margin-bottom: 16px; }
+  .tile { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+  .tile .lbl { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); font-weight: 700; }
+  .tile .big { font-size: 18px; font-weight: 700; }
+  .tile .act { margin-top: auto; padding-top: 6px; }
+  .btn.pt { background: var(--pt); border-color: var(--pt); color: #fff; font-weight: 600; }
+  .btn.pt:hover { background: var(--pt-dark); }
+
+  .appt { display: flex; gap: 14px; align-items: center; padding: 12px 0; border-top: 1px solid #eef0f3; }
+  .appt:first-child { border-top: 0; }
+  .cal { width: 58px; flex-shrink: 0; text-align: center; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .cal .m { background: var(--pt); color: #fff; font-size: 11px; font-weight: 700; text-transform: uppercase; padding: 2px 0; }
+  .cal .d { font-size: 22px; font-weight: 700; padding: 2px 0 0; }
+  .cal .w { font-size: 11px; color: var(--muted); padding-bottom: 3px; }
+  .appt .info { flex: 1; min-width: 0; }
+  .appt .t { font-weight: 600; }
+
+  .rx { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-top: 1px solid #eef0f3; }
+  .rx:first-child { border-top: 0; }
+  .rx .pill-ic { width: 36px; height: 36px; border-radius: 9px; background: var(--pt-bg); display: grid; place-items: center; flex-shrink: 0; }
+  .rx .info { flex: 1; min-width: 0; }
+
+  .thread { border: 1px solid var(--border); border-radius: 12px; margin-bottom: 12px; background: #fff; overflow: hidden; }
+  .thread .th-head { display: flex; gap: 10px; align-items: center; padding: 11px 14px; cursor: pointer; }
+  .thread .th-head:hover { background: #f7faf9; }
+  .thread .th-head .subj { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .thread .th-head .when { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .thread.unread .th-head .subj::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #d92d20; margin-right: 8px; vertical-align: middle; }
+  .thread .th-body { border-top: 1px solid #eef0f3; padding: 12px 14px; background: #fafcfc; }
+  .bubble { max-width: 82%; padding: 9px 12px; border-radius: 12px; margin-bottom: 8px; white-space: pre-wrap; font-size: 14px; }
+  .bubble.me { margin-left: auto; background: var(--pt); color: #fff; border-bottom-right-radius: 4px; }
+  .bubble.them { background: #fff; border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .bubble .by { font-size: 11px; opacity: .75; margin-top: 4px; }
+  .reply-row { display: flex; gap: 8px; margin-top: 8px; }
+  .reply-row textarea { flex: 1; }
+
+  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+  .field-grid .full { grid-column: span 2; }
+  .fld { display: flex; flex-direction: column; gap: 4px; }
+  .fld label { font-size: 12px; font-weight: 600; color: var(--muted); }
+  .fld input, .fld select, .fld textarea, .reply-row textarea { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font: inherit; background: #fff; width: 100%; }
+  .fld textarea { min-height: 90px; resize: vertical; }
+  .fld input:focus, .fld select:focus, .fld textarea:focus, .reply-row textarea:focus { outline: 2px solid var(--pt); border-color: var(--pt); }
+  .form-foot { display: flex; gap: 10px; align-items: center; justify-content: flex-end; margin-top: 12px; }
+  .form-foot .form-error { flex: 1; }
+
+  table.res { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.res th { text-align: left; font-size: 12px; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  table.res td { padding: 8px; border-bottom: 1px solid #eef0f3; }
+  table.res tr.abn td { background: #fff6f5; }
+  .flag { font-weight: 700; color: var(--missing); }
+  .summary { background: var(--pt-bg); border-radius: 10px; padding: 12px 14px; white-space: pre-wrap; font-size: 14px; }
+  details.note summary { cursor: pointer; color: var(--pt-dark); font-size: 13px; margin-top: 8px; }
+  details.note div { white-space: pre-wrap; font-size: 14px; padding: 8px 0 0; color: #333; }
+  .kv { display: grid; grid-template-columns: 110px 1fr; gap: 6px 10px; font-size: 14px; }
+  .kv .k { color: var(--muted); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .chip { border: 1px solid var(--border); border-radius: 8px; padding: 4px 10px; font-size: 13px; background: #fff; }
+  .chip b { font-size: 15px; }
+
+  /* sign-in (demo patient picker) */
+  .picker { max-width: 860px; margin: 32px auto; padding: 0 20px; }
+  .picker h1 { font-size: 26px; margin: 0 0 6px; }
+  .pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin-top: 18px; }
+  .pcard { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 14px; display: flex; gap: 12px; align-items: center; cursor: pointer; text-align: left; font: inherit; color: inherit; }
+  .pcard:hover { border-color: var(--pt); box-shadow: 0 2px 10px rgba(15,118,110,.12); }
+  .pcard .av { width: 42px; height: 42px; border-radius: 50%; background: var(--pt-bg); color: var(--pt-dark); display: grid; place-items: center; font-weight: 700; flex-shrink: 0; }
+
+  @media (max-width: 820px) {
+    .pt-wrap { grid-template-columns: 1fr; padding: 14px 16px; }
+    .side { position: static; flex-direction: row; overflow-x: auto; gap: 4px; padding-bottom: 4px; }
+    .side a { white-space: nowrap; padding: 7px 10px; font-size: 14px; }
+    .field-grid { grid-template-columns: 1fr; } .field-grid .full { grid-column: span 1; }
+    .pt-top .tag, .pt-top .staff { display: none; }
+    .bubble { max-width: 92%; }
+  }
+</style>
+</head>
+<body>
+<header class="pt-top">
+  <a class="brand" href="/portal"><span class="mark">✚</span><span id="brandName">Patient Portal</span></a>
+  <span class="tag">Plano Community Clinic</span>
+  <span class="sp"></span>
+  <span class="who" id="who"></span>
+  <a class="staff" href="/">Staff view ↗</a>
+</header>
+<div class="demo-strip">Demo patient portal · all patients are fictional · in a real portal each patient signs in to their own account</div>
+<div id="app"><div class="empty">Loading…</div></div>
+
+<script src="/static/shell.js"></script>
+<script>
+// Patient-facing page: uses the shell helpers (api, esc, toast, openModal, onEvent) but not the staff nav.
+$("brandName").textContent = `${PRODUCT_NAME} · Patient Portal`;
+document.title = `Patient Portal · ${PRODUCT_NAME}`;
+
+const SECTIONS = [
+  ["home", "🏠", "Home"], ["appointments", "📅", "Appointments"], ["messages", "💬", "Messages"],
+  ["medications", "💊", "Medications"], ["results", "🧪", "Test results"], ["visits", "📝", "Visit summaries"],
+  ["billing", "💵", "Billing"],
+];
+const KIND_LABEL = { message: "Message", refill_request: "Refill request", appointment_request: "Appointment request" };
+const APPT_STATUS = { booked: ["Confirmed", "green"], checked_in: ["Checked in", "blue"], in_visit: ["With your provider", "blue"],
+                      completed: ["Completed", ""], cancelled: ["Cancelled", "red"], no_show: ["Missed", "red"] };
+const VISIT_TYPES = { follow_up: "Follow-up visit", sick: "Sick visit (new problem)", new: "Annual physical / check-up" };
+const TIME_OF_DAY = { any: "Any time", morning: "Morning (8 AM-12 PM)", afternoon: "Afternoon (12-5 PM)", evening: "Evening (5-7 PM)" };
+
+const params = new URLSearchParams(location.search);
+const patientId = Number(params.get("patient")) || null;
+let view = null, ref = null, results = null, resultsAvailable = false;
+let openThreads = new Set();
+
+const section = () => { const s = location.hash.slice(1); return SECTIONS.some(([k]) => k === s) ? s : "home"; };
+const timeOf = (iso) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+const dayLong = (iso) => new Date(iso.length === 10 ? iso + "T00:00" : iso).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+const ago = (iso) => {
+  const mins = Math.round((Date.now() - new Date(iso)) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  if (mins < 1440) return `${Math.round(mins / 60)} h ago`;
+  return fmtDate(iso);
+};
+const firstName = () => view.patient.first_name;
+
+// ---------- sign-in (pick a demo patient) ----------
+async function renderPicker() {
+  $("who").innerHTML = "";
+  const list = await api("/api/patients");
+  $("app").innerHTML = `<div class="picker">
+    <h1>Welcome to your patient portal</h1>
+    <p class="sub">Demo sign-in: choose a fictional patient to see the portal as they would.</p>
+    <div class="pgrid">${list.map((p) => `
+      <button class="pcard" data-id="${p.id}"><span class="av">${esc((p.first_name[0] || "") + (p.last_name[0] || ""))}</span>
+        <span><b>${esc(p.first_name)} ${esc(p.last_name)}</b><br><span class="muted small">${p.dob ? "Born " + fmtDate(p.dob) : ""}${p.payer_name ? " · " + esc(p.payer_name) : ""}</span></span>
+      </button>`).join("")}</div></div>`;
+  document.querySelectorAll(".pcard").forEach((b) => b.onclick = () => location.href = `/portal?patient=${b.dataset.id}#home`);
+}
+
+// ---------- data ----------
+async function load() {
+  try {
+    [view, ref] = await Promise.all([api(`/api/portal/${patientId}`), reference()]);
+  } catch (e) {
+    $("app").innerHTML = `<div class="picker"><div class="box">${esc(e.message)}. <a href="/portal">Choose another patient</a></div></div>`;
+    return;
+  }
+  await loadResults();
+  render();
+}
+
+// Lab results come from Track A (GET /api/patients/{id}/results). Until that exists, show a friendly empty state.
+async function loadResults() {
+  try {
+    const r = await fetch(`/api/patients/${patientId}/results`);
+    resultsAvailable = r.ok;
+    const data = r.ok ? await r.json() : null;
+    results = Array.isArray(data) ? data : (data && (data.results || data.orders)) || [];
+  } catch (e) { resultsAvailable = false; results = []; }
+}
+
+let _reloadTimer = null;
+function reloadSoon() { clearTimeout(_reloadTimer); _reloadTimer = setTimeout(load, 250); }
+
+// ---------- layout ----------
+function render() {
+  const p = view.patient;
+  $("who").innerHTML = `<span>👤 ${esc(p.first_name)} ${esc(p.last_name)}</span><a href="/portal">Switch patient</a>`;
+  const cur = section();
+  const badge = { messages: view.unread, results: newResults().length };
+  $("app").innerHTML = `<div class="pt-wrap">
+    <nav class="side">${SECTIONS.map(([k, ic, label]) => `<a href="#${k}" class="${k === cur ? "active" : ""}">
+      <span class="ic">${ic}</span>${label}${badge[k] ? `<span class="count">${badge[k]}</span>` : ""}</a>`).join("")}</nav>
+    <main id="main"></main></div>`;
+  ({ home: renderHome, appointments: renderAppointments, messages: renderMessages, medications: renderMedications,
+     results: renderResults, visits: renderVisits, billing: renderBilling })[cur]($("main"));
+}
+window.addEventListener("hashchange", () => { if (view) { render(); window.scrollTo(0, 0); } });
+
+// ---------- home ----------
+function renderHome(el) {
+  const p = view.patient, next = view.upcoming[0];
+  const waiting = view.messages.filter((m) => m.direction === "to_clinic" && m.status === "new").length;
+  const refills = view.prescriptions.filter((r) => r.refill_requested).length;
+  const nres = newResults().length;
+  const hour = new Date().getHours();
+  el.innerHTML = `
+    <h1 class="hello">Good ${hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening"}, ${esc(p.first_name)}</h1>
+    <p class="sub">Here's what's going on with your care at Plano Community Clinic.</p>
+    <div class="tiles">
+      <div class="tile"><span class="lbl">Next appointment</span>
+        ${next ? `<span class="big">${esc(dayLong(next.start))}</span><span>${timeOf(next.start)} with ${esc(next.provider_name)}</span>
+          <span class="muted small">${esc(next.reason || "")}</span>`
+        : `<span class="big">Nothing scheduled</span><span class="muted small">Need to see us? Send a request.</span>`}
+        <span class="act"><a class="btn small ${next ? "" : "pt"}" href="#appointments">${next ? "View appointments" : "Request an appointment"}</a></span></div>
+      <div class="tile"><span class="lbl">Messages</span>
+        <span class="big">${view.unread ? `${view.unread} new from your care team` : "No new messages"}</span>
+        <span class="muted small">${waiting ? `${waiting} waiting for a reply from the clinic` : "Questions? Message your care team any time."}</span>
+        <span class="act"><a class="btn small" href="#messages">Open messages</a></span></div>
+      <div class="tile"><span class="lbl">Test results</span>
+        <span class="big">${nres ? `${nres} new result${nres > 1 ? "s" : ""}` : results.length ? "All results viewed" : "No results yet"}</span>
+        <span class="muted small">Results appear here as soon as the lab sends them.</span>
+        <span class="act"><a class="btn small" href="#results">See results</a></span></div>
+      <div class="tile"><span class="lbl">Medications</span>
+        <span class="big">${view.prescriptions.length} prescription${view.prescriptions.length === 1 ? "" : "s"}</span>
+        <span class="muted small">${refills ? `${refills} refill request${refills > 1 ? "s" : ""} in progress` : "Running low? Request a refill online."}</span>
+        <span class="act"><a class="btn small" href="#medications">Request a refill</a></span></div>
+    </div>
+    <div class="box"><h3>Your health record</h3>
+      <div class="kv">
+        <span class="k">Allergies</span><span>${esc(p.allergies) || "No known allergies"}</span>
+        <span class="k">Conditions</span><span>${esc(p.conditions) || "-"}</span>
+        <span class="k">Insurance</span><span>${p.payer_name ? `${esc(p.payer_name)}${p.member_id ? ` · Member ID ${esc(p.member_id)}` : ""}` : "None on file"}</span>
+        <span class="k">Pharmacy</span><span>${esc(p.pharmacy_name) || "Not set"}</span>
+      </div>
+      <p class="muted small" style="margin:10px 0 0">Something wrong? Send us a message and the front desk will update it.</p>
+    </div>`;
+}
+
+// ---------- appointments ----------
+function apptRow(a) {
+  const d = new Date(a.start), [label, cls] = APPT_STATUS[a.status] || [a.status, ""];
+  return `<div class="appt">
+    <div class="cal"><div class="m">${d.toLocaleDateString("en-US", { month: "short" })}</div><div class="d">${d.getDate()}</div>
+      <div class="w">${d.toLocaleDateString("en-US", { weekday: "short" })}</div></div>
+    <div class="info"><div class="t">${timeOf(a.start)} · ${esc(a.provider_name)}</div>
+      <div class="muted small">${esc(a.reason || "Office visit")} · ${a.duration_min} min · 1701 10th St, Plano TX</div></div>
+    <span class="badge ${cls}">${label}</span></div>`;
+}
+
+function renderAppointments(el) {
+  const reqs = view.appointment_requests;
+  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+  const minDate = new Date().toISOString().slice(0, 10);
+  el.innerHTML = `
+    <div class="sec-title"><h2>Appointments</h2></div>
+    <div class="box"><h3>Upcoming</h3>
+      ${view.upcoming.length ? view.upcoming.map(apptRow).join("") : '<p class="muted" style="margin:0">No upcoming appointments.</p>'}
+      ${view.upcoming.length ? '<p class="muted small" style="margin:10px 0 0">Need to cancel or reschedule? Send us a message or call (972) 555-0100.</p>' : ""}
+    </div>
+    ${reqs.length ? `<div class="box"><h3>Your requests</h3>${reqs.map((m) => `
+      <div class="appt"><div class="info"><div class="t">${esc(m.details?.reason || m.subject)}</div>
+        <div class="muted small">${esc(m.body.split("\n").slice(-1)[0])} · sent ${ago(m.created_at)}</div></div>
+        ${m.status === "new" ? '<span class="badge amber">Waiting for the clinic</span>' : '<span class="badge green">Handled</span>'}</div>`).join("")}</div>` : ""}
+    <div class="box" id="reqBox"><h3>Request an appointment</h3>
+      <p class="muted small" style="margin:-4px 0 12px">Tell us what works for you. The front desk will confirm a time, usually within one business day.</p>
+      <form id="reqForm" class="field-grid" autocomplete="off">
+        <div class="fld"><label for="rqType">Type of visit</label><select id="rqType">${Object.entries(VISIT_TYPES).map(([k, l]) => `<option value="${k}">${l}</option>`).join("")}</select></div>
+        <div class="fld"><label for="rqProv">Provider</label><select id="rqProv"><option value="">Any available provider</option>
+          ${ref.providers.map((x) => `<option value="${x.id}">${esc(x.name)}, ${esc(x.credentials)}</option>`).join("")}</select></div>
+        <div class="fld"><label for="rqDate">Preferred date</label><input id="rqDate" type="date" min="${minDate}" value="${tomorrow.toISOString().slice(0, 10)}"></div>
+        <div class="fld"><label for="rqTime">Time of day</label><select id="rqTime">${Object.entries(TIME_OF_DAY).map(([k, l]) => `<option value="${k}">${l}</option>`).join("")}</select></div>
+        <div class="fld full"><label for="rqReason">Reason for the visit</label><textarea id="rqReason" placeholder="e.g. Blood pressure check, follow-up on my lab results"></textarea></div>
+      </form>
+      <div class="form-foot"><span class="form-error" id="rqErr"></span><button class="btn pt" id="rqSend">Send request</button></div>
+    </div>
+    ${view.past_appointments.length ? `<div class="box"><h3>Past appointments</h3>${view.past_appointments.map(apptRow).join("")}</div>` : ""}`;
+
+  $("rqSend").onclick = async () => {
+    const body = { visit_type: $("rqType").value, provider_id: $("rqProv").value ? Number($("rqProv").value) : null,
+                   preferred_date: $("rqDate").value, time_of_day: $("rqTime").value, reason: $("rqReason").value.trim() };
+    if (!body.reason) { $("rqErr").textContent = "Please tell us the reason for the visit."; return; }
+    if (!body.preferred_date) { $("rqErr").textContent = "Please pick a preferred date."; return; }
+    $("rqSend").disabled = true;
+    try {
+      await api(`/api/portal/${patientId}/appointment-requests`, { method: "POST", body });
+      toast("Request sent ✓ The front desk will confirm a time.");
+      await load();
+    } catch (e) { $("rqErr").textContent = e.message; $("rqSend").disabled = false; }
+  };
+}
+
+// ---------- messages ----------
+function threads() {
+  const byId = Object.fromEntries(view.messages.map((m) => [m.id, m]));
+  const rootOf = (m) => { let r = m; const seen = new Set(); while (r.reply_to && byId[r.reply_to] && !seen.has(r.id)) { seen.add(r.id); r = byId[r.reply_to]; } return r; };
+  const groups = {};
+  for (const m of view.messages) (groups[rootOf(m).id] ||= []).push(m);
+  return Object.entries(groups).map(([id, list]) => {
+    list.sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id - b.id);
+    return { root: byId[id], list, last: list[list.length - 1] };
+  }).sort((a, b) => b.last.created_at.localeCompare(a.last.created_at));
+}
+
+function threadStatus(t) {
+  if (t.list.some((m) => m.direction === "to_patient" && m.status === "new")) return '<span class="badge red">New reply</span>';
+  if (t.last.direction === "to_patient") return '<span class="badge green">Answered</span>';
+  if (t.root.kind !== "message" && t.root.status === "done") return '<span class="badge green">Done</span>';
+  return t.list.some((m) => m.direction === "to_clinic" && m.status === "new") ? '<span class="badge amber">Waiting for reply</span>' : '<span class="badge">Closed</span>';
+}
+
+function renderMessages(el) {
+  const ts = threads();
+  el.innerHTML = `
+    <div class="sec-title"><h2>Messages</h2><button class="btn pt" id="newMsg">✉ New message</button></div>
+    <div class="box" id="composeBox" hidden><h3>Message your care team</h3>
+      <div class="field-grid">
+        <div class="fld full"><label for="cmSubj">Subject</label><input id="cmSubj" maxlength="120" placeholder="e.g. Question about my medication"></div>
+        <div class="fld full"><label for="cmBody">Message</label><textarea id="cmBody" maxlength="4000"></textarea></div>
+      </div>
+      <p class="muted small" style="margin:8px 0 0">⚠ For emergencies call 911. Messages are answered during clinic hours, usually within one business day.</p>
+      <div class="form-foot"><span class="form-error" id="cmErr"></span><button class="btn" id="cmCancel">Cancel</button><button class="btn pt" id="cmSend">Send</button></div>
+    </div>
+    ${ts.length ? ts.map((t) => {
+      const unread = t.list.some((m) => m.direction === "to_patient" && m.status === "new");
+      const open = openThreads.has(t.root.id) || unread;
+      return `<div class="thread ${unread ? "unread" : ""}" data-root="${t.root.id}">
+        <div class="th-head"><span class="badge blue">${KIND_LABEL[t.root.kind] || "Message"}</span>
+          <span class="subj">${esc(t.root.subject)}</span>${threadStatus(t)}<span class="when">${ago(t.last.created_at)}</span></div>
+        <div class="th-body" ${open ? "" : "hidden"}>
+          ${t.list.map((m) => `<div class="bubble ${m.direction === "to_clinic" ? "me" : "them"}">${esc(m.body)}<div class="by">${m.direction === "to_clinic" ? "You" : esc(m.sender || "Your care team")} · ${fmtDateTime(m.created_at)}</div></div>`).join("")}
+          <div class="reply-row"><textarea rows="2" placeholder="Write a reply…" maxlength="4000"></textarea><button class="btn pt small">Reply</button></div>
+        </div></div>`;
+    }).join("") : '<div class="box"><p class="muted" style="margin:0">No messages yet. Use “New message” to ask your care team a question.</p></div>'}`;
+
+  const compose = () => { $("composeBox").hidden = false; $("cmSubj").focus(); };
+  $("newMsg").onclick = compose;
+  $("cmCancel").onclick = () => $("composeBox").hidden = true;
+  $("cmSend").onclick = async () => {
+    const subject = $("cmSubj").value.trim(), body = $("cmBody").value.trim();
+    if (!subject || !body) { $("cmErr").textContent = "Please add a subject and a message."; return; }
+    $("cmSend").disabled = true;
+    try {
+      const m = await api(`/api/portal/${patientId}/messages`, { method: "POST", body: { subject, body } });
+      openThreads.add(m.id);
+      toast("Message sent ✓");
+      await load();
+    } catch (e) { $("cmErr").textContent = e.message; $("cmSend").disabled = false; }
+  };
+  el.querySelectorAll(".thread").forEach((th) => {
+    const root = Number(th.dataset.root), body = th.querySelector(".th-body");
+    th.querySelector(".th-head").onclick = () => {
+      body.hidden = !body.hidden;
+      body.hidden ? openThreads.delete(root) : openThreads.add(root);
+    };
+    const ta = th.querySelector("textarea"), btn = th.querySelector(".reply-row button");
+    btn.onclick = async () => {
+      if (!ta.value.trim()) return ta.focus();
+      btn.disabled = true;
+      const subj = view.messages.find((m) => m.id === root).subject;
+      try {
+        await api(`/api/portal/${patientId}/messages`, { method: "POST",
+          body: { subject: subj.startsWith("Re: ") ? subj : "Re: " + subj, body: ta.value.trim(), reply_to: root } });
+        openThreads.add(root);
+        toast("Reply sent ✓");
+        await load();
+      } catch (e) { toast(e.message, "error"); btn.disabled = false; }
+    };
+  });
+  // Opening the inbox marks the care team's replies as read (after a moment, so the red dot is visible first).
+  if (view.unread) setTimeout(async () => { await api(`/api/portal/${patientId}/messages/read`, { method: "POST" }); load(); }, 2500);
+}
+
+// ---------- medications ----------
+function renderMedications(el) {
+  const p = view.patient;
+  el.innerHTML = `
+    <div class="sec-title"><h2>Medications</h2></div>
+    ${p.allergies ? `<div class="alert urgent" style="margin:0 0 16px"><b>Allergies</b>${esc(p.allergies)}</div>` : ""}
+    <div class="box"><h3>Prescriptions from this clinic</h3>
+      ${view.prescriptions.length ? view.prescriptions.map((r) => `
+        <div class="rx"><div class="pill-ic">💊</div>
+          <div class="info"><b>${esc(r.drug)} ${esc(r.strength)}</b><div class="small">${esc(r.sig)}</div>
+            <div class="muted small">Qty ${r.quantity} · ${r.refills} refill${r.refills === 1 ? "" : "s"} left · ${esc(r.pharmacy_name || "")} · prescribed ${fmtDate(r.sent_at)} by ${esc(r.provider_name || "your provider")}</div></div>
+          ${r.refill_requested ? '<span class="badge amber">Refill requested</span>'
+            : `<button class="btn small pt" data-rx="${r.id}">Request refill</button>`}
+        </div>`).join("") : '<p class="muted" style="margin:0">No prescriptions from this clinic yet.</p>'}
+    </div>
+    ${p.medications ? `<div class="box"><h3>Other medications on file</h3><div>${esc(p.medications)}</div>
+      <p class="muted small" style="margin:8px 0 0">Is this list out of date? Send us a message so we can update it.</p></div>` : ""}`;
+  el.querySelectorAll("button[data-rx]").forEach((b) => b.onclick = () => openRefill(view.prescriptions.find((r) => r.id === Number(b.dataset.rx))));
+}
+
+function openRefill(rx) {
+  const m = openModal(`<div class="modal-head"><h2>Request a refill</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <p style="margin-top:0"><b>${esc(rx.drug)} ${esc(rx.strength)}</b><br><span class="muted small">${esc(rx.sig)}</span></p>
+      <div class="field-grid">
+        <div class="fld full"><label for="rfPh">Send to pharmacy</label><select id="rfPh">${ref.pharmacies.map((ph) =>
+          `<option value="${ph.id}" ${ph.id === rx.pharmacy_id ? "selected" : ""}>${esc(ph.name)} (${esc(ph.address)})</option>`).join("")}</select></div>
+        <div class="fld full"><label for="rfNote">Note for your care team (optional)</label><textarea id="rfNote" placeholder="e.g. I have 5 days left"></textarea></div>
+      </div>
+      <p class="muted small">Your provider reviews every refill request before it's sent to the pharmacy.</p>
+    </div>
+    <div class="modal-foot"><span class="form-error" id="rfErr"></span><button class="btn" onclick="closeModal()">Cancel</button><button class="btn pt" id="rfSend">Send request</button></div>`);
+  m.querySelector("#rfSend").onclick = async () => {
+    m.querySelector("#rfSend").disabled = true;
+    try {
+      await api(`/api/portal/${patientId}/refill-requests`, { method: "POST",
+        body: { rx_id: rx.id, pharmacy_id: Number($("rfPh").value), note: $("rfNote").value } });
+      closeModal();
+      toast("Refill request sent to your care team ✓");
+      await load();
+    } catch (e) { $("rfErr").textContent = e.message; m.querySelector("#rfSend").disabled = false; }
+  };
+}
+
+// ---------- test results (from Track A's lab module) ----------
+const SEEN_KEY = () => `portal-seen-results-${patientId}`;
+function seenResults() { try { return new Set(JSON.parse(localStorage.getItem(SEEN_KEY()) || "[]")); } catch (e) { return new Set(); } }
+function resultKey(r, i) { return String(r.id ?? r.order_id ?? i); }
+function isFinal(r) { return !["ordered", "pending", "in_progress", "collected"].includes(String(r.status || "").toLowerCase()); }
+function newResults() { const seen = seenResults(); return (results || []).filter((r, i) => isFinal(r) && !seen.has(resultKey(r, i))); }
+
+function resultRows(items) {
+  return `<table class="res"><thead><tr><th>Test</th><th>Result</th><th>Normal range</th><th></th></tr></thead><tbody>
+    ${items.map((x) => {
+      const flag = String(x.flag || x.abnormal_flag || "").toUpperCase();
+      return `<tr class="${flag ? "abn" : ""}"><td>${esc(x.analyte || x.test || x.name || x.code || "")}</td>
+        <td><b>${esc(x.value ?? x.result ?? "")}</b> ${esc(x.unit || x.units || "")}</td>
+        <td class="muted">${esc(x.ref_range || x.reference_range || x.range || x.normal || "")}</td>
+        <td>${flag ? `<span class="flag">${flag === "H" ? "High" : flag === "L" ? "Low" : esc(flag)}</span>` : ""}</td></tr>`;
+    }).join("")}</tbody></table>`;
+}
+
+function renderResults(el) {
+  const list = results || [];
+  const fresh = new Set(newResults().map((r) => resultKey(r, list.indexOf(r))));
+  const panels = list.filter((r) => Array.isArray(r.results) || Array.isArray(r.items));
+  const flat = list.filter((r) => !Array.isArray(r.results) && !Array.isArray(r.items));
+  el.innerHTML = `<div class="sec-title"><h2>Test results</h2></div>
+    ${!list.length ? `<div class="box"><p class="muted" style="margin:0">${resultsAvailable ? "No test results yet." : "No test results yet. When your provider orders lab tests, results will appear here."}</p></div>` : ""}
+    ${panels.map((o, i) => {
+      const done = isFinal(o);
+      return `<div class="box"><h3 style="display:flex;gap:8px;align-items:center">${esc(o.test_name || o.panel || o.name || o.test || "Lab test")}
+        ${fresh.has(resultKey(o, list.indexOf(o))) ? '<span class="badge red">New</span>' : ""}
+        <span class="muted small" style="font-weight:400;margin-left:auto">${done ? "Resulted " + fmtDate(o.resulted_at || o.result_date || o.date || o.updated_at) : "Waiting for the lab"}</span></h3>
+        ${done ? resultRows(o.results || o.items) : '<p class="muted small" style="margin:0">Sample sent to the lab. Results usually come back within a day.</p>'}
+        ${o.comment || o.provider_comment ? `<div class="summary" style="margin-top:10px"><b>Note from your provider:</b> ${esc(o.comment || o.provider_comment)}</div>` : ""}</div>`;
+    }).join("")}
+    ${flat.length ? `<div class="box"><h3>Results</h3>${resultRows(flat)}</div>` : ""}
+    ${list.length ? '<p class="muted small">Results marked High or Low are outside the usual range. That doesn\'t always mean something is wrong: your provider will review them and contact you if anything needs follow-up.</p>' : ""}`;
+  // Viewing the page marks results as seen (per browser; a convenience only).
+  try { localStorage.setItem(SEEN_KEY(), JSON.stringify(list.map(resultKey))); } catch (e) {}
+}
+
+// ---------- visit summaries ----------
+const VITAL_LABELS = [["BP", (v) => v.bp_systolic && `${v.bp_systolic}/${v.bp_diastolic ?? "?"}`, "mmHg"], ["Heart rate", (v) => v.heart_rate, "bpm"],
+  ["Oxygen", (v) => v.spo2, "%"], ["Glucose", (v) => v.blood_glucose, "mg/dL"], ["Weight", (v) => v.weight_lbs, "lbs"], ["Temp", (v) => v.temperature, "°" + "F"]];
+
+function renderVisits(el) {
+  el.innerHTML = `<div class="sec-title"><h2>Visit summaries</h2></div>
+    ${view.visits.length ? view.visits.map((v) => {
+      const screening = v.type === "screening";
+      const vit = VITAL_LABELS.map(([l, get, u]) => { const x = get(v.vitals || {}); return x ? `<span class="chip">${l} <b>${esc(x)}</b> ${u}</span>` : ""; }).join("");
+      return `<div class="box">
+        <h3 style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${fmtDate(v.date)} · ${screening ? "Health screening" : "Office visit"}
+          <span class="muted small" style="font-weight:400">${esc(v.provider_name || (screening ? "Health fair staff" : ""))}${v.reason ? " · " + esc(v.reason) : ""}</span></h3>
+        ${v.summary ? `<div class="summary">${esc(v.summary)}</div>`
+          : screening ? "" : '<p class="muted small" style="margin:0 0 4px">Your after-visit summary will appear here once your provider finishes it.</p>'}
+        ${vit ? `<div class="chips">${vit}</div>` : ""}
+        ${(v.alerts || []).filter((a) => a.level !== "info").map((a) => `<div class="alert ${a.level}" style="margin-top:10px"><b>Screening flag</b>${esc(a.text)}
+          <div class="small muted">A screening flag is not a diagnosis. Please book a visit so a provider can check it.</div></div>`).join("")}
+        ${!screening && v.note ? `<details class="note"><summary>Read your provider's note</summary><div>${esc(v.note)}</div></details>` : ""}
+      </div>`;
+    }).join("") : '<div class="box"><p class="muted" style="margin:0">No past visits yet.</p></div>'}`;
+}
+
+// ---------- billing (Track B task 3: balances + online payment) ----------
+function renderBilling(el) {
+  el.innerHTML = `<div class="sec-title"><h2>Billing</h2></div>
+    <div class="box"><h3>Online bill pay</h3>
+      <p class="muted" style="margin:0">Coming soon: see what you owe after insurance, and pay your bill online.</p></div>`;
+}
+
+// ---------- live updates ----------
+onEvent((ev) => {
+  if (!patientId || !view) return;
+  if (ev.type === "clinic_reset") { location.href = "/portal"; return; }
+  const mine = ev.patient_id === patientId || (ev.rx && ev.rx.patient_id === patientId) || (ev.message && ev.message.patient_id === patientId);
+  if (ev.type === "message_created" && ev.message && ev.message.patient_id === patientId && ev.message.direction === "to_patient") {
+    toast(`💬 New message from ${ev.message.sender || "your care team"}`);
+  }
+  if (ev.type === "lab_resulted" && mine) toast("🧪 A new test result is ready");
+  if (mine || ev.type === "schedule_changed") reloadSoon();
+});
+
+if (patientId) load(); else renderPicker();
+</script>
+</body>
+</html>

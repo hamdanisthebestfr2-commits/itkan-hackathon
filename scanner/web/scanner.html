@@ -177,9 +177,8 @@ document.addEventListener("keydown", (e) => {
 });
 
 // ---------- events from the server ----------
-const es = new EventSource("/api/events");
-es.onmessage = (m) => {
-  const ev = JSON.parse(m.data);
+// Shared live-update connection (see shell.js onEvent), not a separate one per tab.
+onEvent((ev) => {
   if (ev.type === "captured") { beep(880, 90); showReading(ev); }
   else if (ev.type === "result") { showResult(ev); }
   else if (ev.type === "error") { showError(ev.message); }
@@ -189,7 +188,13 @@ es.onmessage = (m) => {
     if (current && ev.auto) clearReview();
     if (!current) showSaved(ev);
   }
-};
+});
+
+// The camera preview is a never-ending stream that holds one of the browser's 6 connections.
+// Release it while this tab is hidden and reconnect when it's visible again.
+document.addEventListener("visibilitychange", () => {
+  $("video").src = document.hidden ? "" : "/video?" + Date.now();
+});
 
 fetch("/api/pending").then((r) => r.json()).then((ev) => { if (ev && !current) showResult(ev); });
 

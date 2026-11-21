@@ -10,6 +10,7 @@ const NAV = [
   { href: "/billing", label: "Billing" },
   { href: "/pharmacy", label: "Pharmacy" },
   { href: "/savings", label: "Savings" },
+  { href: "/portal", label: "Patient Portal ↗" },  // Track B
 ];
 
 function renderNav(active) {
@@ -28,6 +29,7 @@ function renderNav(active) {
 
 // Show script errors on the page instead of failing silently (a frozen "Loading…" is worse in a demo).
 function _showError(msg) {
+  if (_leaving) return;
   let bar = document.getElementById("errorBar");
   if (!bar) {
     bar = document.createElement("div");
@@ -37,6 +39,12 @@ function _showError(msg) {
   }
   bar.textContent = "Error: " + msg;
 }
+// Requests cut off because the user clicked to another page are not errors; don't flash the red bar for them.
+let _leaving = false;
+window.addEventListener("pagehide", () => { _leaving = true; });
+window.addEventListener("beforeunload", () => { _leaving = true; });
+// Back/forward cache restored a page we had "left": reload so data and live updates are fresh.
+window.addEventListener("pageshow", (e) => { if (e.persisted) location.reload(); });
 window.addEventListener("error", (e) => _showError(`${e.message} (${(e.filename || "").split("/").pop()}:${e.lineno})`));
 window.addEventListener("unhandledrejection", (e) => _showError(e.reason && e.reason.stack ? e.reason.stack.split("\n").slice(0, 2).join(" ") : String(e.reason)));
 
@@ -47,7 +55,21 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 async function api(path, options = {}) {
   const opts = { ...options, headers: { "Content-Type": "application/json", ...(options.headers || {}) } };
   if (opts.body && typeof opts.body !== "string") opts.body = JSON.stringify(opts.body);
-  const r = await fetch(path, opts);
+  const method = (opts.method || "GET").toUpperCase();
+  let r;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      r = await fetch(path, opts);
+      break;
+    } catch (e) {
+      // Network failure (server restarting / unreachable). Reads are safe to retry; writes are not
+      // (the server may have already saved it), so those fail right away with a clear message.
+      if (method !== "GET" || attempt >= 4) {
+        throw new Error("Can't reach the app server. Check that start.bat is still running, then try again.");
+      }
+      await new Promise((res) => setTimeout(res, 600 * (attempt + 1)));
+    }
+  }
   const data = await r.json().catch(() => null);
   if (!r.ok) throw new Error((data && data.detail) || `Request failed (${r.status})`);
   return data;
@@ -97,14 +119,25 @@ function openModal(html, { wide = false } = {}) {
 function closeModal() { document.querySelectorAll(".modal-back").forEach((m) => m.remove()); }
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
 
-// One shared live-update stream per page.
+// Live updates. All open tabs share ONE connection through a SharedWorker (static/events-worker.js):
+// browsers allow only 6 connections per site, and one stream per tab used to make new pages hang.
 const _listeners = [];
 function onEvent(fn) {
   _listeners.push(fn);
-  if (_listeners.length === 1) {
-    const es = new EventSource("/api/events");
-    es.onmessage = (m) => { const ev = JSON.parse(m.data); _listeners.forEach((f) => f(ev)); };
+  if (_listeners.length > 1) return;
+  const deliver = (data) => { const ev = JSON.parse(data); _listeners.forEach((f) => f(ev)); };
+  if (window.SharedWorker) {
+    try {
+      const w = new SharedWorker("/static/events-worker.js", { name: "live-events" });
+      w.port.onmessage = (m) => deliver(m.data);
+      w.port.start();
+      window.addEventListener("pagehide", () => w.port.postMessage("bye"));
+      return;
+    } catch (e) { /* fall through to a direct connection */ }
   }
+  const es = new EventSource("/api/events");
+  es.onmessage = (m) => deliver(m.data);
+  window.addEventListener("pagehide", () => es.close());
 }
 
 let _reference = null;

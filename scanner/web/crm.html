@@ -212,9 +212,23 @@ $("resetBtn").onclick = async () => {
   await fetch("/api/crm/reset", { method: "POST" });
 };
 
-const es = new EventSource("/api/events");
-es.onmessage = async (m) => {
-  const ev = JSON.parse(m.data);
+// Share the app's single live-update connection (static/events-worker.js); this page doesn't load shell.js.
+function onCrmEvent(handler) {
+  if (window.SharedWorker) {
+    try {
+      const w = new SharedWorker("/static/events-worker.js", { name: "live-events" });
+      w.port.onmessage = (m) => handler(m.data);
+      w.port.start();
+      window.addEventListener("pagehide", () => w.port.postMessage("bye"));
+      return;
+    } catch (e) { /* fall back below */ }
+  }
+  const es = new EventSource("/api/events");
+  es.onmessage = (m) => handler(m.data);
+  window.addEventListener("pagehide", () => es.close());
+}
+onCrmEvent(async (data) => {
+  const ev = JSON.parse(data);
   if (ev.type === "crm_saved") {
     await loadList(ev.contact_id);
     loadStats();
@@ -223,7 +237,7 @@ es.onmessage = async (m) => {
     selected = null; loadList(); loadStats();
     $("detail").innerHTML = '<div class="placeholder"><div><b>Demo data cleared.</b></div></div>';
   }
-};
+});
 
 loadList(); loadStats();
 if (location.hash.length > 1) openContact(location.hash.slice(1));
