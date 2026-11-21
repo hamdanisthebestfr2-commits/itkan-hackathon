@@ -78,6 +78,7 @@
     <input type="date" id="datePick">
     <span style="flex:1"></span>
     <label class="small"><input type="checkbox" id="showCancelled"> Show cancelled</label>
+    <button class="btn small" id="verifyBtn" title="Check every patient's insurance for this day with the insurer">🛡 Verify insurance</button>
     <button class="btn small" id="resetBtn" title="Restore the fictional demo patients and today's appointments">Reset demo data</button>
   </div>
   <div class="summary" id="summary"></div>
@@ -87,6 +88,7 @@
 
 <script src="/static/shell.js"></script>
 <script src="/static/patient-form.js"></script>
+<script src="/static/eligibility.js"></script>
 <script>
 renderNav("/schedule");
 const DAY_START = 8, DAY_END = 19, SLOT = 15, PX_PER_MIN = 1.5;   // 8 AM-7 PM (covers an evening demo), 15-minute rows
@@ -97,6 +99,7 @@ const params = new URLSearchParams(location.search);
 let day = params.get("date") || isoDay(new Date());
 let bookingFor = null;          // patient being booked from their chart (?patient_id=)
 let providers = [], appts = [], flashId = Number(params.get("appt")) || null;
+let elig = {};                  // patient_id -> latest insurance eligibility check (Track B)
 
 function isoDay(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
 function addDays(iso, n) { const d = new Date(iso + "T00:00"); d.setDate(d.getDate() + n); return isoDay(d); }
@@ -108,7 +111,12 @@ const isPast = (iso, mins) => new Date(`${iso}T${pad(Math.floor(mins / 60))}:${p
 async function load() {
   providers = (await reference()).providers;
   appts = await api("/api/appointments?day=" + day);
+  await loadElig(false);
   render();
+}
+async function loadElig(rerender = true) {
+  try { elig = await api("/api/eligibility/day?day=" + day); } catch (e) { elig = {}; }
+  if (rerender) render();
 }
 
 function render() {
@@ -125,6 +133,9 @@ function render() {
     <span class="pill" style="background:#f1eaff;color:#6d3fd6">${count("in_visit")} in visit</span>
     <span class="pill ok">${count("completed")} done</span>
     ${count("cancelled") + count("no_show") ? `<span class="pill missing">${count("cancelled") + count("no_show")} cancelled / no-show</span>` : ""}
+    ${(() => { const bad = new Set(appts.filter((a) => !["cancelled", "no_show", "completed"].includes(a.status) && elig[a.patient_id]
+        && !elig[a.patient_id].stale && ELIG_PROBLEM.includes(elig[a.patient_id].status)).map((a) => a.patient_id)).size;
+      return bad ? `<span class="pill missing" title="Open the appointment to see the insurer's answer">⚠ ${bad} insurance problem${bad === 1 ? "" : "s"}</span>` : ""; })()}
     <span style="flex:1"></span>
     <span class="legend">${Object.entries({ booked: "#5b8def", checked_in: "#e0a030", in_visit: "#8b5cf6", completed: "#1f8a4c" })
       .map(([s, c]) => `<span style="--c:${c}">${STATUS_LABEL[s]}</span>`).join("")}</span>`;
@@ -154,7 +165,7 @@ function render() {
       const top = (minutesOf(a.start) - DAY_START * 60) * PX_PER_MIN, h = Math.max(a.duration_min * PX_PER_MIN - 2, 20);
       html += `<div class="appt ${a.status} ${a.id === flashId ? "flash" : ""}" data-id="${a.id}" style="top:${top + 1}px;height:${h}px">
         <span class="st">${STATUS_LABEL[a.status]}</span>
-        <div class="nm">${esc(a.first_name)} ${esc(a.last_name)}</div>
+        <div class="nm">${["cancelled", "no_show"].includes(a.status) ? "" : eligBadge(elig[a.patient_id])}${esc(a.first_name)} ${esc(a.last_name)}</div>
         ${h > 30 ? `<div class="rs">${timeLabel(minutesOf(a.start))}${a.reason ? " · " + esc(a.reason) : ""}</div>` : ""}</div>`;
     }
     html += `</div>`;
@@ -215,8 +226,19 @@ function openBooking(state) {
     if (chosen) {
       pick.innerHTML = `<div class="chosen"><b>${esc(chosen.first_name)} ${esc(chosen.last_name)}</b>
         <span class="muted small">${esc(chosen.mrn)} · DOB ${fmtDate(chosen.dob)}</span>
-        <button type="button" class="btn small" id="changePt">Change</button></div>`;
+        <button type="button" class="btn small" id="changePt">Change</button></div>
+        <div id="bookElig" style="margin-top:8px"></div>`;
       pick.querySelector("#changePt").onclick = () => { chosen = null; renderPick(); };
+      // Track B: verify insurance as soon as the patient is picked (before the slot is booked)
+      const patient = chosen;
+      renderEligibility(pick.querySelector("#bookElig"), patient.id, { source: "booking", auto: true, compact: true,
+        onEditInsurance: async () => {
+          const form = new FormData(m.querySelector("#bookForm"));   // keep what was typed; the edit form replaces this modal
+          const keep = { ...state, minute: Number(form.get("minute")), date: form.get("date"), provider_id: Number(form.get("provider_id")),
+            duration_min: Number(form.get("duration_min")), visit_type: form.get("visit_type"), reason: form.get("reason") };
+          openPatientForm(await api("/api/patients/" + patient.id),
+            async () => openBooking({ ...keep, patient: await api("/api/patients/" + patient.id) }));
+        } });
       return;
     }
     pick.innerHTML = `<div style="display:flex;gap:8px"><input id="ptSearch" placeholder="Search patient by name, phone, or MRN" style="flex:1">
@@ -294,11 +316,25 @@ function openDetail(a) {
       <span class="k">Visit type</span><span>${esc(VISIT_TYPES[a.visit_type] || a.visit_type)}</span>
       <span class="k">Reason</span><span>${esc(a.reason) || "-"}</span>
       <span class="k">Patient</span><span>${esc(a.mrn)} · DOB ${fmtDate(a.dob)} · <a href="/patient?id=${a.patient_id}">Open chart →</a></span>
-    </div></div>
+    </div>
+    ${["cancelled", "no_show"].includes(a.status) ? "" : `<div style="margin-top:14px"><div class="small muted" style="font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Insurance</div><div id="apptElig"></div></div>`}
+    </div>
     <div class="modal-foot" style="justify-content:flex-start"><div class="actions">${acts || '<span class="muted">Visit completed.</span>'}</div></div>`);
+  // Track B: insurance eligibility (re-checked automatically if never verified or out of date)
+  let coverage = null;
+  if (m.querySelector("#apptElig")) {
+    renderEligibility(m.querySelector("#apptElig"), a.patient_id, {
+      appointmentId: a.id, source: "check_in", auto: ["booked", "checked_in"].includes(a.status),
+      onResult: (c) => { coverage = c; },
+      onEditInsurance: async () => openPatientForm(await api("/api/patients/" + a.patient_id), () => { load(); openDetail(a); }),
+    });
+  }
   m.querySelectorAll("[data-act]").forEach((b) => b.onclick = async () => {
     const act = b.dataset.act;
     if (act === "reschedule") return openReschedule(a);
+    const checkingIn = a.status === "booked" && (act === "checked_in" || act === "start");
+    if (checkingIn && coverage && ELIG_PROBLEM.includes(coverage.status) &&
+        !confirm(`Insurance problem: ${coverage.label}.\n\n${coverage.action || ""}\n\nCheck ${a.first_name} in anyway?`)) return;
     if (act === "start") {
       const res = await api(`/api/appointments/${a.id}/start-visit`, { method: "POST" });
       location.href = "/visit?id=" + res.encounter_id;
@@ -356,7 +392,22 @@ $("resetBtn").onclick = async () => {
   go(isoDay(new Date()));
   toast("Demo data reset");
 };
-onEvent((ev) => { if (ev.type === "schedule_changed" && ev.day === day) load(); if (ev.type === "clinic_reset") load(); });
+onEvent((ev) => {
+  if (ev.type === "schedule_changed" && ev.day === day) load();
+  if (ev.type === "clinic_reset") load();
+  if (ev.type === "eligibility_checked") loadElig();
+});
+$("verifyBtn").onclick = async () => {
+  const b = $("verifyBtn");
+  b.disabled = true; b.textContent = "🛡 Checking…";
+  try {
+    const r = await api("/api/eligibility/batch", { method: "POST", body: { day } });
+    toast(r.checked ? `Checked ${r.checked} patient${r.checked === 1 ? "" : "s"}: ${r.problems ? `⚠ ${r.problems} need attention` : "all good ✓"}`
+                    : "No upcoming appointments to check", r.problems ? "error" : "ok");
+    await loadElig();
+  } catch (e) { toast(e.message, "error"); }
+  b.disabled = false; b.textContent = "🛡 Verify insurance";
+};
 setInterval(() => { if (day === isoDay(new Date())) render(); }, 60000);   // keep the red "now" line moving
 
 (async () => {
