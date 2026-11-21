@@ -446,7 +446,16 @@ shows a denial, and the AI writes the appeal → dashboard: "this clinic would p
 
 ---
 
-## 6. Working conventions
+## 6. GitHub repo
+- **https://github.com/hamdanisthebestfr2-commits/itkan-hackathon** (PRIVATE, branch `main`). The project root is the
+  repo root. `gh` is logged in as `hamdanisthebestfr2-commits`.
+- Root `.gitignore` excludes `.env` (API key + Gmail App Password), `.venv/`, `scanner/data/` (SQLite DB + scans),
+  and `__pycache__`. **Before every commit, check that no secret is staged:** `git grep --cached -n -E "(GEMINI_API_KEY|SMTP_PASS)=[A-Za-z0-9]"`.
+- New laptop setup: clone → `cd scanner` → `py -3.12 -m venv .venv` → `.venv\Scripts\pip install -r requirements.txt`
+  → create `scanner\.env` by hand (see `scanner/README.md` → Settings) → `start.bat`.
+- Commit/push only when the user asks; end commit messages with the attribution line from the system reminder.
+
+## 7. Working conventions
 - Match the existing code style: small focused modules, short docstrings explaining *why*, plain HTML/JS.
 - Keep `FIELDS`-style single sources of truth (code lists, drug list, seed data).
 - After changing reader or prompt logic, run `scanner\.venv\Scripts\python.exe scanner\eval\run_eval.py`.
