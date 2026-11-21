@@ -1,122 +1,189 @@
-# FlatRate Health: Demo Script & Day-Of Guide
-ITKAN AI Hackathon · Saturday Nov 21, 2026 · *(product name is a placeholder; swap it in `scanner/web/static/shell.js`)*
+# Iris: Live Demo Script & Day-Of Guide
+ITKAN AI Hackathon · Saturday Nov 21, 2026
+
+The pitch itself (slides + what to say + the "why" behind every number) is in **`Iris Pitch Script.pdf`**.
+The deck is at https://claude.ai/artifact/P5DDAiutEfjJCHZHRE7ztc (Share → Export for PowerPoint/PDF).
+This file is the **live demo**: what to click, what to say, and what to do if something breaks.
+
+**Tested:** this exact path was dry-run end to end with real AI on Nov 21 afternoon (all steps passed; Robert’s claim
+paid $147.70, Aisha’s appeal approved, time saved 45 min → 1 hr 30 min).
+
+**The one message of the demo: Iris saves time.** Every step shows a job that used to take minutes being done by AI
+in seconds, with a person approving it.
 
 ---
 
-## 1. Morning checklist (do this before judging starts)
+## 1. Setup checklist (before judging)
 
 **Hardware**
-- [ ] Laptop charged + charger plugged in
-- [ ] **Plug in the Logitech C920 before starting the app** (the app finds it by name)
-- [ ] Close Zoom/Teams/OBS. Only one app can use the camera at a time
-- [ ] Card holder set up: card fills most of the camera view with dark background around it
-- [ ] 2-3 filled-in **fake** intake cards ready (the Jhon Harzorwick card + spares)
-- [ ] Phone hotspot ready in case venue Wi-Fi drops (the AI needs internet)
+- [ ] Laptop charged, charger plugged in. Phone hotspot ready (the AI needs internet).
+- [ ] **Plug in the Logitech C920 before starting Iris** (Iris picks it by name).
+- [ ] Close Zoom/Teams/OBS: only one app can use the camera.
+- [ ] The **Jhon Harzorwick card** ready (plus a spare fake card).
 
 **Software**
-- [ ] Close any old black `start.bat` windows, then double-click `scanner\start.bat`
-- [ ] Dashboard opens → click **↺ Reset demo data** (bottom right). This fills **today's** schedule
-- [ ] Open a **second browser window** with the **Pharmacy** page and put it side by side (or on a 2nd screen)
-- [ ] Pharmacy → **Send test email** → check that the email arrived on your phone (ibrahimosman123cc@gmail.com)
-- [ ] Warm-up: scan the Jhon card once to confirm camera + AI work → then **Reset demo data again**
-- [ ] Open Gmail on your phone so you can show the prescription email arriving
-- [ ] Browser zoom 100% (Ctrl+0); full screen (F11) looks cleanest on a projector
+- [ ] Close any old black `start.bat` windows → double-click `scanner\start.bat`.
+- [ ] Press **Ctrl+F5** once in the browser so the new Iris look loads.
+- [ ] Dashboard → scroll down → **Reset demo data**. This fills today’s schedule.
+- [ ] Warm-up: scan the Jhon card once (camera + AI check) → **Reset demo data again**.
+- [ ] **Window layout:**
+  - **Left (big, main screen):** Iris staff app on the Dashboard.
+  - **Right window, two tabs:**
+    - **Tab 1: Pharmacy** (`/pharmacy`).
+    - **Tab 2: Patient Portal**: Patient Portal → pick **Robert Nguyen** → **Visit summaries**.
+  - Switching browser tabs doesn’t trigger the 2-second loading screen, only page changes do.
+- [ ] Phone: Gmail open on the demo inbox (prescription emails arrive there).
+- [ ] Gemini credits: check the balance at https://ai.studio/projects (one demo uses about 8 AI calls, a few cents).
+- [ ] Browser zoom 100% (Ctrl+0). F11 full screen looks best on a projector.
+- [ ] Copy the **backup transcript** (section 2, step 4) somewhere you can paste it from quickly (e.g. Notepad).
 
-**AI limit reminder:** on the free Gemini plan each AI model allows only about 20 requests a day. One full demo uses
-about 5 requests. The app automatically switches to backup models, but **don't do lots of practice scans on demo day.**
-If billing is turned on for the Gemini key, this limit goes away.
+> The 2-second Iris loading screen appears on every page change. This demo uses only about 5 page changes on purpose.
+> Use the pause: it’s a good moment to say your next sentence.
 
 ---
 
-## 2. The 3-minute demo (clicks + what to say)
+## 2. The live demo (about 4 minutes)
 
-> **Opening line (15 s):** "Small clinics pay companies like athenaOne **4-8% of everything they collect**, which is
-> $65K-$185K a year for a 3-doctor clinic, mostly for billing paperwork. We built **FlatRate Health**: the whole
-> clinic system, with AI doing the paperwork, for a flat monthly price."
+### Step 1 · Dashboard (0:00–0:15) · no clicks
+**Say:** “This is Iris on a clinic morning. Up here: how much staff time the AI has already saved. Down here: today’s
+patients, quality scores and the money. Let me show you where that time comes from.”
 
-| Time | Click | Say |
-|---|---|---|
-| 0:15 | **Dashboard** is on screen | "This is the clinic's day: schedule, patients, money, and how much staff time AI has saved." |
-| 0:25 | **Scan intake card** → hold the Jhon card in the holder → beep | "Health fairs collect hundreds of handwritten cards. Watch: we just hold it up." |
-| 0:40 | Review screen appears | "Two AI models read it independently and cross-check each other. Anything uncertain turns yellow, with a zoom of the handwriting." |
-| 0:50 | Point at the yellow **BMI** field → click **Use calculated 35.5** | "It even caught a mistake *on the card*: BMI says 24.9, but 5'6" and 220 lbs is 35.5." |
-| 1:00 | **Save to patient record** → **Open patient chart** | "He's now a registered patient: no typing." |
-| 1:05 | **Edit** → add insurance (Bluebonnet, any member ID), pharmacy → Save → **Start visit** → choose provider | "Now he sees the doctor." |
-| 1:15 | **Use vitals from screening** → **🎤 Dictate** (or type) the note | "The doctor just talks. The vitals came straight from the card." |
-| 1:30 | Prescribe **Nicotine patch** → **Send to pharmacy** | "One click: it goes to the pharmacy…" → **point at the pharmacy window + phone email** → "…instantly." |
-| 1:45 | **Sign & complete visit** → **Open claim** | "The moment it's signed, AI codes the visit for billing." |
-| 1:55 | Hover a code (evidence lights up) → **Accept all** | "Every code quotes the exact sentence that justifies it, and it can only use real codes from an approved list. A human approves." |
-| 2:05 | Point at the **Claim checker** → **Approve claim** → **Submit to insurer** | "The checker catches what gets claims rejected *before* sending. And… paid." |
-| 2:20 | Open **Aisha Khan's** claim → **🤖 Fight this denial** | "When insurers deny, this is where clinics lose money. AI reads the denial, the insurer's policy and the note…" |
-| 2:30 | Show the recommendation + letter → **Submit appeal** | "…and writes the appeal. Approved: $52.50 recovered. And when a denial is *correct*, it says so and recommends writing it off. It's honest." |
-| 2:45 | **Savings** page → move the providers slider | "A 3-doctor clinic saves about $79,000 a year. The more a clinic earns, the more a percentage takes; ours stays flat." |
-| 2:55 | **Dashboard** | "And the time-saved number just went up while we talked." |
+### Step 2 · Scan a paper card (0:15–1:00) · *page change 1*
+1. Click **Scan intake card** (top right).
+2. Hold the Jhon card in front of the camera. Green outline → hold still → **beep**.
+   (No beep? Press **Space** or **Scan now**.)
+3. The review screen appears in about 7 seconds.
 
-> **Closing line:** "Scanning, charting, e-prescribing, billing and denials in one system, with AI that shows
-> its work and a human who approves it."
+**Say:** “Clinics and health fairs still use paper. We don’t make them stop. Two AI models read the handwriting at the
+same time and check each other, about 7 seconds instead of 2 to 3 minutes of typing.”
+
+4. Point at the yellow **BMI** field → click **Use calculated 35.5**.
+
+**Say:** “It even caught a mistake on the card: it says BMI 24.9, but 5 foot 6 and 220 pounds is 35.5.”
+
+5. Press **Enter** (Save to patient record).
+
+**Say:** “He’s a patient now, with his vitals in the chart. Nobody typed anything.”
+
+### Step 3 · Robert’s visit (1:00–2:30) · *page changes 2 and 3*
+1. Click **Schedule** → click **Robert Nguyen** (1:00 PM, Annual physical) → **Check in & start visit**.
+   The copay window opens (Iris checked his insurance: $20 copay) → **💵 Cash** → **Record $20.00 cash** → **Done**.
+   The visit opens. *(In a hurry: **Skip, collect later**.)*
+
+**Say (while paying):** “Check-in already knows his insurance is active and his copay is twenty dollars: no phone
+call to the insurer.”
+
+**Say:** “Robert came from a health fair with a blood pressure of 168 over 104. Iris already shows his care gaps on the
+right: things insurers and Medicare score clinics on.”
+
+2. **AI ambient notes.** Choose one:
+   - **Live (most impressive):** click **Record the visit** → **Start recording**. Your partner plays Robert and you
+     play the doctor for about 20 seconds (use the transcript below as your lines) → stop.
+   - **Safe:** click the **Wispr Flow transcript** tab → paste the backup transcript → **✨ Write SOAP note**.
+
+   Backup transcript:
+   > Doctor: Hi Robert, I see the health fair flagged your blood pressure at 168 over 104. How have you been feeling?
+   > Robert: Mostly fine, some headaches. I smoke about a pack a day and I want to quit.
+   > Doctor: Today your blood pressure is still high. Let's start a nicotine patch, 21 milligrams a day, cut back on salt,
+   > walk 30 minutes a day, and recheck your blood pressure in 4 weeks. I'll also order a cholesterol test.
+
+3. When the draft appears → **Insert into visit note**.
+
+**Say:** “The doctor just talked to the patient. The AI wrote the note. The doctor reads it and approves it.”
+
+4. Care gaps: click **Add to note** on each open gap (3 clicks) → they turn green.
+
+**Say:** “Three quality gaps closed in three clicks, documented properly.”
+
+5. **Prescriptions this visit:** choose **Nicotine patch** → **Send to pharmacy ➜**. Point at the **right window (Pharmacy tab)** and
+   your phone.
+
+**Say:** “It goes straight to the pharmacy… there it is, and the email just arrived on my phone.”
+
+6. *(Optional)* **🧪 Lab orders:** tick **Lipid panel** → **Order selected tests** → **Result now (demo)**.
+7. Click **Sign & complete visit** → OK.
+
+**Say:** “Signing does three things at once: it locks the note, the AI codes the visit for billing, and the AI writes
+Robert a summary in plain language.”
+
+8. In **📝 After-visit summary**: pick **Spanish** → **✨ Re-draft** → **Send to patient portal**. Switch the right
+   window to the **Portal tab**: the summary appears.
+
+**Say:** “Patients get a summary they can actually read, in their own language, in seconds.”
+
+### Step 4 · Ask the chart (2:30–2:50) · no page change
+Click **✨ Ask the chart** (bottom right) → **Summarize this patient before the visit**. Click one blue source chip.
+
+**Say:** “Doctors spend ages hunting through charts. Ask in plain English and get an answer in about a second, with a
+link to where every fact came from. If it’s not in the chart, it says so.”
+
+### Step 5 · Billing (2:50–3:40) · *page change 4*
+1. In the green bar at the top of the visit: **Open claim →**.
+2. Hover a code: the words in the note that justify it light up. Click **Accept all high-confidence** → **Approve
+   claim** (if the **Claim checker** shows an issue, click its one-click fix first: “it catches what gets claims
+   rejected before they’re sent”) → **Submit to insurer**.
+
+**Say:** “Coding a visit by hand takes a billing person about 7 minutes. The AI does it in seconds, quoting the note,
+using only real codes. And… paid.”
+
+3. In the claims list on the left, click **Aisha Khan** (Partly denied) → **🤖 Fight this denial** → **Submit appeal**.
+
+**Say:** “Denials are where clinics lose money and hours. The AI explains it, checks the note and writes the appeal.
+Approved: fifty-two fifty back. If a denial is correct, it says so instead.”
+
+### Step 6 · Close on the Dashboard (3:40–4:00) · *page change 5*
+Click **Dashboard**.
+
+**Say:** “The time-saved number went from 45 minutes to about an hour and a half while we talked. That’s Iris: AI doing the paperwork so clinics get their time
+back, at a flat price instead of a cut of their revenue.”
+
+**Short on time? Cut in this order:** the lab order (3.6), the Spanish re-draft (3.8, just send English), Ask the chart
+(step 4), the appeal (5.3).
 
 ---
 
 ## 3. If something goes wrong
 
-| Problem | What to do (stay calm, it's part of the story) |
+| Problem | What to do (stay calm, it’s part of the story) |
 |---|---|
-| Card won't auto-scan | Press **Space** (or **Scan now**). Or **Upload photo** with a phone picture of the card |
-| AI misreads a field | "That's exactly why the review screen exists": fix it and continue |
-| "AI daily limit reached" / AI busy | Say: "We're on the free AI tier; in production this is a paid key." Type codes by hand on the Billing page (search box), or switch to the backup video |
-| Wi-Fi drops | Switch to the phone hotspot. Everything except AI and email works offline |
-| Camera not showing | Pick **HD Pro Webcam C920** in the camera dropdown; replug it and restart `start.bat` |
-| App frozen / closed | Close the black window, double-click `start.bat` again. Data is saved, nothing is lost |
-| Schedule looks empty | Dashboard → **Reset demo data** |
-| Total disaster | Play the **backup video** (section 6) |
+| Card won’t auto-scan | Press **Space** (or **Scan now**). Or **Upload photo** with a phone picture of the card. |
+| The AI misreads a field | “That’s exactly why a person reviews it.” Fix it and continue. |
+| “AI unavailable” / “credits depleted” | Switch to the phone hotspot if Wi-Fi dropped. If it says credits: add credits at ai.studio/projects. Meanwhile type the note, add codes with the search box on the claim, or play the backup video. |
+| Recording doesn’t work | Use the **Wispr Flow transcript** tab with the backup transcript. |
+| Camera shows the laptop camera | Choose **HD Pro Webcam C920** in the camera drop-down on Scan Intake. |
+| Pharmacy/portal didn’t update | Click the tab again (it updates live; at worst press F5 in that window). |
+| Loading screen seems stuck | It lifts by itself within 4 seconds. If the page is blank, check that the black start.bat window is still open. |
+| Iris is frozen or closed | Close the black window, double-click `start.bat` again. Nothing is lost. |
+| Schedule looks empty / Robert already done | Dashboard → **Reset demo data** (wait for it, then start over at step 1). |
+| Total disaster | Play the **backup video** (section 5). |
 
 ---
 
-## 4. Likely judge questions
+## 4. Judge questions
 
-- **"Is this HIPAA compliant?"** Not yet; it's a demo with fictional patients. Production would run on HIPAA-eligible
-  hosting with signed BAAs (including the AI provider, e.g. Google Cloud Vertex AI or Anthropic enterprise), encryption,
-  access logs and user logins. We never put real patient data into the free AI tier.
-- **"How accurate is it?"** On our test card the scanner read **25/25 fields** correctly. Uncertain fields are flagged
-  instead of guessed, and two AI models cross-check each other. The AI coder chose the correct codes for every test visit after
-  we taught it the official "2 of 3" visit-level rule. *(Small test set: say so honestly. More test cards = stronger numbers; see section 7.)*
-- **"What if the AI makes up a code or a fact?"** It can only choose from an approved code list (unknown codes are
-  removed), every code must quote the note (quotes not found are flagged), and a human approves every code and every appeal.
-- **"Isn't AI billing risky (fraud/upcoding)?"** We designed against it: the claim checker *never* adds a diagnosis
-  just to get paid; it only links what the doctor documented, or removes the charge.
-- **"Is the insurer/pharmacy real?"** Simulated. Next step: a claims clearinghouse (e.g. Availity) for real claims and
-  Surescripts for real e-prescriptions. The data is already in standard shapes (CMS-1500, CARC denial codes).
-- **"Why is your price flat? How do you make money?"** AI does most of the billing work that percentage-based companies
-  pay people to do, so our cost doesn't grow with the clinic's revenue. The demo price is $499/provider/month *(team: confirm your number)*.
-- **"Competitors?"** athenaOne, eClinicalWorks, Tebra (full systems); AI billing startups like RapidClaims, Arintra,
-  Amperos (mostly target bigger groups). We combine the full clinic system + AI billing for **small** clinics.
-- **"What does the AI cost to run?"** A fraction of a cent per request; about 5 requests per patient visit end-to-end.
+Full answers are in **`Iris Pitch Script.pdf`** → Sections B and C. The short versions:
+- **Why so cheap?** AI does the billing work that percentage-based companies pay people to do, and software costs
+  almost nothing extra per clinic.
+- **Why $499 per provider?** Real deployment costs (HIPAA hosting, AI usage, pharmacy/claims network fees, DEA identity
+  checks, certification, support) grow per doctor, not per dollar earned. It’s still about 70–80% less than athenaOne.
+- **Old-school clinics won’t adopt AI.** Iris doesn’t make them change: paper cards still work, the screens are normal,
+  and a person approves every AI suggestion.
+- **Is the AI accurate?** It shows its evidence (quotes, sources), uses only approved codes, double-reads cards, and a
+  person approves everything.
+- **HIPAA?** Demo = fictional patients only. Production = HIPAA hosting with business associate agreements.
+- **What’s real?** The whole software flow and the AI. Simulated: pharmacy network, insurers, lab, prescription
+  monitoring.
 
 ---
 
-## 5. Pitch slides (6 slides)
-1. **Problem:** small clinics pay 4-8% of collections ($65K-$185K/yr for 3 providers) + hours of typing intake forms.
-2. **Solution:** FlatRate Health: one system (intake → schedule → visit → e-Rx → billing) with AI doing the paperwork.
-3. **Demo** (live).
-4. **AI with guardrails:** two-model cross-check, approved code lists, evidence quotes, human approval, honest denial advice, no upcoding.
-5. **Results & savings:** 25/25 fields on the test card · full workflow ~40 seconds · $79K/yr saved for a 3-provider clinic.
-6. **Next steps:** clearinghouse + Surescripts integrations, HIPAA hosting, pilot with a local clinic. Team slide.
+## 5. Backup video (record after one clean rehearsal)
+1. Reset demo data, then run the demo once while recording.
+2. **Windows:** **Win + Alt + R** (Xbox Game Bar) starts/stops recording the browser window, or use OBS → Display
+   Capture → Start Recording.
+3. Trim in **Clipchamp** (built into Windows) to about 3–4 minutes. Save it on the desktop *and* your phone.
 
 ---
 
-## 6. Record a backup video (do this tonight or early morning)
-1. Reset demo data, then run the whole demo once while recording.
-2. **Windows:** press **Win + Alt + R** (Xbox Game Bar) to start/stop recording the browser window. Or use **OBS**
-   (already installed): add "Display Capture" → Start Recording.
-3. Trim in **Clipchamp** (built into Windows). Keep it ~3 minutes. Put the file on the desktop *and* your phone.
-
----
-
-## 7. Optional, if time allows
-- Fill **10-15 more fake cards** in different handwriting, photograph them, and put them in `scanner\eval\cards\`
-  (copy `card01.json` as the answer key) → run `scanner\.venv\Scripts\python.exe scanner\eval\run_eval.py` for
-  real accuracy numbers for slide 5.
-- Decide the real **product name** and **price**.
-
-## 8. After the hackathon
-- Delete the Gemini API key in Google AI Studio and the Gmail App Password in your Google account (both were shared in chat).
+## 6. After the hackathon
+- Delete the Gemini API key in Google AI Studio and the Gmail App Password in your Google account (both were shared in
+  chat). Turn off auto-reload on the Gemini credits if you turned it on.

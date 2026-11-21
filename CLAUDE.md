@@ -46,7 +46,14 @@ planning, research and all the programming. The user handles the physical/CAD si
     - **Skipped when `navigator.webdriver`** (Playwright), so tests aren't slowed. To test the loader, add the init script
       `Object.defineProperty(navigator,'webdriver',{get:()=>false})`.
     - Measured: click → fade starts at 2.0 s, fully visible ≈ 2.4 s.
-- **Uncommitted at this point (the user said not to push A6 until told):** A6 Ask the chart, the Iris rebrand, the camera fix.
+- **Pushed (Nov 21 afternoon, `7257601` → main/track-a/track-b):** A6, the rebrand, UI v2 + loader, the camera fix, the PDFs.
+- **`DEMO_SCRIPT.md` rewritten for Iris:** a ~4-min live demo, 5 page changes.
+  - Flow: Dashboard → scan the Jhon card → Schedule → Robert → Check in & start visit → **copay window** (💵 Cash → Record
+    $20.00 cash → Done; the B3 feature) → AI note from the transcript (backup transcript in the script) → 3 care gaps →
+    nicotine patch → lipid panel → sign → Spanish summary → Ask the chart → Open claim → accept all → approve → submit (paid)
+    → Aisha's appeal → Dashboard.
+  - Right window: Pharmacy tab + Robert's Portal tab.
+  - The dry-run script (`demo_dry.py` in the scratchpad) passed every step with real AI.
 
 ## ⭐ START HERE: current state + architecture map (updated Nov 21, 2026, about midday)
 
