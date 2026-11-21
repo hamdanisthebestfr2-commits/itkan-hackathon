@@ -6,6 +6,82 @@ planning, research and all the programming. The user handles the physical/CAD si
 
 ---
 
+## 0. ⭐ HACKATHON DAY PLAN (Sat Nov 21, 2026): read this first
+The platform from Phases 1-7 (sections 3-4) is **done and working**. Today (~7 h at the event) we add the
+athenaOne features we're missing, built by **two people in parallel**: Claude on Track A, the user/partner on Track B.
+Status: **plan approved by the user; not started yet.** Next step: Claude builds the skeleton (step 0 below).
+
+### Research summary: athenaOne vs. us (Nov 21)
+athenaOne = athenaClinicals (EHR) + athenaCollector (practice management/billing) + athenaCommunicator (patients).
+**Already have:** charting/templates, dictation, e-prescribing + allergy checks, scheduling, registration,
+check-in, claim scrubbing, claim submission, payment posting (remittance), denial management + AI appeals,
+dashboard, card-scan intake.
+**Missing → building today** (below). **Out of scope (roadmap only, say so in the pitch):** real pharmacy network
+(Surescripts) and clearinghouse connections, government/ONC certification, mobile app, telehealth video,
+immunization registry, fax.
+
+### Track A: AI clinical (Claude, branch `track-a`), in priority order
+1. **🎙 AI Ambient Notes** (~1.5 h): browser records the doctor-patient conversation (MediaRecorder) →
+   audio sent to Gemini (multimodal) → draft SOAP note → doctor edits → sign. Matches athenaOne's flagship
+   "Ambient Notes" (athenaAmbient, used by 170K+ clinicians). Must say "AI draft, review before signing".
+2. **💊 Controlled-substance e-prescribing (EPCS), DEMO** (~1 h; the user explicitly approved it). It sends to the pharmacy
+   inbox **and automatically emails** the demo inbox, like normal Rx. Demo rules to build:
+   - Formulary gains controlled drugs with a DEA schedule (e.g. tramadol C-IV, alprazolam C-IV, zolpidem C-IV,
+     pregabalin C-V, oxycodone C-II, amphetamine salts C-II); schedule badge shown.
+   - **Mock PDMP check** (fictional state prescription-monitoring history) shown before signing, with risk flags.
+   - **Two-factor signing:** a one-time code emailed to the demo inbox (stands in for the DEA-required 2FA) must be
+     entered to sign.
+   - **C-II: 0 refills enforced**, days-supply limit; prescriber's fictional DEA number on the Rx.
+   - Email + inbox clearly labeled **"CONTROLLED SUBSTANCE (EPCS) DEMO: NOT A VALID PRESCRIPTION"**.
+     Pitch note: the real version requires a certified EPCS app + DEA registration + identity proofing.
+3. **🧪 Lab orders + results + 📥 Clinical Inbox** (~2 h): order labs on the visit (CBC, CMP, A1c, lipid, TSH, UA…)
+   → mock lab returns results after a short delay (abnormal ones flagged H/L) → **Clinical Inbox** page listing results
+   to review/sign + **refill requests + patient messages from Track B's portal**.
+4. **✅ Care gaps / quality measures** (~1 h): rules on chart + dashboard (BP not controlled ≥140/90, A1c overdue
+   for diabetics, tobacco cessation counseling due, BMI ≥30 follow-up, annual exam due).
+5. **📝 AI after-visit summary** (~30 min, if time allows): patient-friendly summary saved on the encounter; the portal shows it.
+6. If time allows: **"Ask the chart" AI assistant** (like athenaOne's Sage).
+
+### Track B: front desk & patients (user/partner, branch `track-b`), in priority order
+1. **📱 Patient Portal** (~2 h): patient view (pick a demo patient): upcoming appointments, request an
+   appointment, lab results (from Track A), visit summaries, messages to the clinic, **refill requests**, bill + pay.
+2. **🛡 Eligibility check** (~1 h): mock insurer response (active/inactive, plan, copay, deductible remaining)
+   at booking and check-in; flag inactive coverage.
+3. **💵 Patient balances, copay collection at check-in, statements** (~1.5 h): patient ledger (copays +
+   patient responsibility from remittances), take payment (mock card), printable statement.
+4. **✉ Appointment reminder emails** (~45 min) via the existing mailer (demo inbox only).
+5. If time allows: **insurance card photo → AI fills insurance fields** (reuse the card reader).
+
+### How Tracks A and B connect (the contract; the skeleton creates these so neither waits on the other)
+- `messages` table (owned by B): `id, patient_id, direction ('to_clinic'|'to_patient'), kind ('message'|'refill_request'|
+  'appointment_request'), subject, body, status ('new'|'done'), rx_id, created_at`. B writes from the portal;
+  A's Clinical Inbox reads `kind`/`status` and marks items done. Event: `message_created`.
+- `lab_orders` / `lab_results` (owned by A); `GET /api/patients/{id}/results` (A) is read by the portal (B). Event: `lab_resulted`.
+- `encounters.summary` column (A writes the after-visit summary); the portal reads it from `GET /api/patients/{id}`.
+- `GET /api/patients/{id}/balance` (B) may be shown on the chart by A.
+- Each module creates **its own tables** in its own `init()`; no edits to other tracks' tables.
+
+### Collaboration workflow (Git branches + merges, not copy-pasting code)
+0. **Skeleton (Claude, about 15 min, on `main`):** empty modules/routers/pages for every feature above, nav links,
+   page routes in `main.py`, shared tables from the contract, plus `COLLAB.md` (file ownership + rules). Push to `main`.
+1. **Partner setup:** add them as a repo collaborator (**ask the user for their GitHub username and confirm before
+   adding**) → clone → venv + `pip install -r scanner/requirements.txt` → **their own `scanner/.env` with their OWN
+   Gemini key** (a shared key hits the 20 requests/model/day free limit fast) → `git checkout -b track-b`.
+2. Claude works on `track-a`. **Both commit + push every ~30 min.**
+3. **Merges** at about +2 h, +4 h and the final merge: Claude merges both branches into `main`, resolves conflicts, runs the
+   rehearsal test (scratchpad `rehearsal.py`-style), pushes; both then `git pull origin main` into their branch.
+4. **Rules:** edit only files your track owns (listed in `COLLAB.md`). Shared files (`main.py`, `shell.js`,
+   `app.css`, `seed.py`, `clinic.py`) are changed **only by Claude**; ask before touching them.
+   Never commit `.env`; run the secret grep (section 6) before every push.
+5. **Code freeze about 1.5 h before judging** → final merge, Reset demo data, rehearse, record the backup video.
+
+### Open questions for the user
+- Who is the partner? Do they have a laptop, and will they use Claude Code? Their **GitHub username** (for repo access)?
+- **What time is judging?** (Sets the merge times and the code freeze.)
+- Product name + real flat price (placeholders: "FlatRate Health", $499/provider/month).
+
+---
+
 ## 1. The hackathon
 - **Event:** ITKAN AI Hackathon, https://www.itkan.one/I-Hackathon
 - **When/where:** **Saturday Nov 21, 2026**, 8:30 AM to 7:00 PM, ITKAN Hub, 1701 10th St, Plano TX. In person.
