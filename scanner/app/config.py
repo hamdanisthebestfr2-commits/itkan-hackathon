@@ -41,7 +41,8 @@ SMTP_USER = os.environ.get("SMTP_USER", "")
 SMTP_PASS = os.environ.get("SMTP_PASS", "")
 PHARMACY_EMAIL_OVERRIDE = os.environ.get("PHARMACY_EMAIL_OVERRIDE", "")
 
-DATA_DIR = ROOT / "data"
+# Tests point DATA_DIR at a scratch folder so they never touch the real demo database.
+DATA_DIR = Path(os.environ.get("DATA_DIR") or ROOT / "data")
 SCANS_DIR = DATA_DIR / "scans"
 DB_PATH = DATA_DIR / "crm.sqlite3"
 WEB_DIR = ROOT / "web"

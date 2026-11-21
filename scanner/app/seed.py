@@ -110,6 +110,8 @@ def seed() -> None:
         con.executemany("INSERT INTO payers (name, kind, payer_code) VALUES (?,?,?)", PAYERS)
         con.executemany("INSERT INTO pharmacies (name, address, phone, email) VALUES (?,?,?,?)", PHARMACIES)
     con.close()
+    from . import epcs
+    epcs.init()  # gives the re-created providers their (fictional) DEA numbers
 
     ids = []
     for first, last, dob, sex, phone, payer, member, pharm, allergies, conds, meds in PATIENTS:

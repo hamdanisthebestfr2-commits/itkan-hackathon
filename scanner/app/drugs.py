@@ -37,11 +37,40 @@ DRUGS = [
     ("Ondansetron", ["4 mg ODT"], "Dissolve 1 tablet on tongue every 8 hours as needed for nausea", 12, "Antiemetic", ["ondansetron"]),
 ]
 
+# Controlled substances (DEA schedules). Prescribed only through EPCS signing (2FA + PDMP check), see epcs.py.
+# name, strengths, default sig, default quantity, class, allergy terms, schedule, default days' supply
+CONTROLLED = [
+    ("Tramadol", ["50 mg tablet"], "Take 1 tablet by mouth every 6 hours as needed for pain", 20, "Opioid analgesic",
+     ["tramadol", "opioid"], "C-IV", 5),
+    ("Hydrocodone-acetaminophen", ["5-325 mg tablet", "10-325 mg tablet"], "Take 1 tablet by mouth every 6 hours as needed for severe pain",
+     12, "Opioid analgesic", ["hydrocodone", "opioid", "codeine"], "C-II", 3),
+    ("Oxycodone", ["5 mg tablet"], "Take 1 tablet by mouth every 6 hours as needed for severe pain", 12, "Opioid analgesic",
+     ["oxycodone", "opioid", "codeine"], "C-II", 3),
+    ("Alprazolam", ["0.25 mg tablet", "0.5 mg tablet"], "Take 1 tablet by mouth up to twice daily as needed for anxiety", 30,
+     "Benzodiazepine", ["alprazolam", "benzodiazepine"], "C-IV", 30),
+    ("Lorazepam", ["0.5 mg tablet", "1 mg tablet"], "Take 1 tablet by mouth up to twice daily as needed for anxiety", 30,
+     "Benzodiazepine", ["lorazepam", "benzodiazepine"], "C-IV", 30),
+    ("Zolpidem", ["5 mg tablet", "10 mg tablet"], "Take 1 tablet by mouth at bedtime as needed for sleep", 30,
+     "Sedative-hypnotic", ["zolpidem"], "C-IV", 30),
+    ("Amphetamine-dextroamphetamine", ["10 mg tablet", "20 mg tablet"], "Take 1 tablet by mouth every morning", 30,
+     "Stimulant (ADHD)", ["amphetamine"], "C-II", 30),
+    ("Methylphenidate ER", ["18 mg tablet", "36 mg tablet"], "Take 1 tablet by mouth every morning", 30,
+     "Stimulant (ADHD)", ["methylphenidate"], "C-II", 30),
+    ("Pregabalin", ["75 mg capsule", "150 mg capsule"], "Take 1 capsule by mouth twice daily", 60,
+     "Anticonvulsant (nerve pain)", ["pregabalin"], "C-V", 30),
+]
+DRUGS += [c[:6] for c in CONTROLLED]
+SCHEDULE = {c[0]: c[6] for c in CONTROLLED}
+DEFAULT_DAYS = {c[0]: c[7] for c in CONTROLLED}
+OPIOIDS = {c[0] for c in CONTROLLED if c[4] == "Opioid analgesic"}
+BENZOS = {c[0] for c in CONTROLLED if c[4] == "Benzodiazepine"}
+
 DRUG_BY_NAME = {d[0]: d for d in DRUGS}
 
 
 def formulary() -> list[dict]:
-    return [{"name": n, "strengths": s, "sig": sig, "quantity": q, "drug_class": c} for n, s, sig, q, c, _ in DRUGS]
+    return [{"name": n, "strengths": s, "sig": sig, "quantity": q, "drug_class": c,
+             "schedule": SCHEDULE.get(n), "days": DEFAULT_DAYS.get(n)} for n, s, sig, q, c, _ in DRUGS]
 
 
 def allergy_conflicts(drug_name: str, allergies: str | None) -> list[str]:

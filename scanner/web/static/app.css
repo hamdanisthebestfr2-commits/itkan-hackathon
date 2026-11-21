@@ -141,3 +141,19 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 .override-row label { display: flex; gap: 6px; align-items: center; font-size: 13px; font-weight: 600; color: var(--missing); text-transform: none; letter-spacing: 0; }
 .override-row input[type=checkbox] { width: auto; margin: 0; }
 .override-row input[name=override_reason] { flex: 1; min-width: 200px; padding: 5px 8px; }
+
+/* EPCS: controlled-substance prescribing */
+.epcs-box { border: 2px solid #f0a39b; border-radius: 10px; overflow: hidden; }
+.epcs-hd { background: #fde9e7; color: #a3261b; font-weight: 700; padding: 8px 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.epcs-hd .sp { flex: 1; }
+.epcs-bd { padding: 10px 12px; font-size: 14px; }
+.epcs-ind { font-size: 13px; color: #52514e; margin: 6px 0; }
+.epcs-fills { margin: 6px 0; font-size: 13px; } .epcs-fills td, .epcs-fills th { padding: 6px 8px; }
+.epcs-check { display: flex; gap: 8px; align-items: center; font-weight: 600; margin-top: 6px; }
+.epcs-check input { width: auto !important; }
+.epcs-2fa { margin-top: 12px; border: 2px solid #0b2545; border-radius: 10px; padding: 12px 14px; background: #f4f7fb; }
+.epcs-2fa-hd { font-weight: 700; margin-bottom: 6px; }
+.epcs-2fa-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin: 10px 0 6px; }
+.epcs-2fa-row label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.epcs-2fa-row input { border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px; width: 150px; font-size: 16px; letter-spacing: 2px; }
+.epcs-code { font-size: 18px; letter-spacing: 3px; color: var(--brand); }

@@ -19,11 +19,18 @@ def recipient() -> str:
 
 def prescription_email(rx: dict) -> EmailMessage:
     msg = EmailMessage()
-    msg["Subject"] = f"New e-Prescription for {rx['first_name']} {rx['last_name']}: {rx['drug']} {rx['strength']}"
+    controlled = bool(rx.get("schedule"))
+    tag = f"[EPCS DEMO · {rx['schedule']}] " if controlled else ""
+    msg["Subject"] = f"{tag}New e-Prescription for {rx['first_name']} {rx['last_name']}: {rx['drug']} {rx['strength']}"
     msg["From"] = config.SMTP_USER
     msg["To"] = config.PHARMACY_EMAIL_OVERRIDE
+    epcs = (f"""*** CONTROLLED SUBSTANCE (EPCS) DEMO: NOT A VALID PRESCRIPTION ***
+DEA schedule: {rx['schedule']}   Days' supply: {rx.get('days_supply')}   Prescriber DEA: {rx.get('dea_number')}
+Signed with two-factor authentication: {rx.get('epcs_signed_at')}   PDMP reviewed: yes
+
+""" if controlled else "")
     msg.set_content(
-        f"""New prescription (DEMO - fictional patient, not a real prescription)
+        epcs + f"""New prescription (DEMO - fictional patient, not a real prescription)
 
 To: {rx['pharmacy_name']}
 Rx #: {rx['id']}
@@ -52,6 +59,23 @@ def _send(msg: EmailMessage) -> None:
 def send_prescription(rx: dict) -> None:
     """Blocking; call from a worker thread. Raises on failure."""
     _send(prescription_email(rx))
+
+
+def send_code(provider_name: str, code: str, drug: str, schedule: str) -> None:
+    """Second factor for EPCS signing (stands in for the authenticator app / hard token)."""
+    msg = EmailMessage()
+    msg["Subject"] = f"EPCS signing code: {code} (DEMO)"
+    msg["From"] = config.SMTP_USER
+    msg["To"] = config.PHARMACY_EMAIL_OVERRIDE
+    msg.set_content(f"""{provider_name}, your one-time code to sign a {schedule} controlled-substance prescription
+({drug}) is:
+
+    {code}
+
+It expires in 5 minutes. If you didn't request this, ignore this email.
+(DEMO of two-factor EPCS signing - not a real prescription.)
+""")
+    _send(msg)
 
 
 def send_test() -> None:

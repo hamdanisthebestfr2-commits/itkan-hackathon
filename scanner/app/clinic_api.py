@@ -237,6 +237,9 @@ async def prescribe(body: PrescriptionBody):
             raise HTTPException(409, "This visit is signed. Prescribe from the patient chart instead")
     if not body.drug.strip() or body.quantity < 1 or not (0 <= body.refills <= 11):
         raise HTTPException(400, "Check the drug, quantity (at least 1) and refills (0-11)")
+    if body.drug in drugs.SCHEDULE:
+        raise HTTPException(409, f"{body.drug} is a controlled substance ({drugs.SCHEDULE[body.drug]}): "
+                                 f"it must be signed with two-factor EPCS")
     conflicts = drugs.allergy_conflicts(body.drug, p["allergies"])
     if conflicts and not body.override_allergy:
         raise HTTPException(409, f"Allergy alert: patient is allergic to {', '.join(conflicts)}")

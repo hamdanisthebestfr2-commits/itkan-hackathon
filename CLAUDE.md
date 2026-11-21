@@ -25,7 +25,26 @@ GitHub username and judging time haven't been given yet).
   trivial prompts). `ai.generate` now prints `[ai] <model> failed (<kind>)` to the server log on each fallback.
   Tested: TTS two-voice conversation fed as Edge's fake microphone (`--use-file-for-fake-audio-capture=x.wav%noloop`)
   → draft 7.6 s after stop, accurate (levothyroxine 75→100, TSH, 6-week follow-up); transcript path OK; 9/9 UI checks.
-- ⏭ Next: A2 EPCS (controlled substances).
+- ✅ **A2 EPCS (controlled substances, DEMO)**: `app/drugs.py` `CONTROLLED` (9 drugs with schedules: tramadol C-IV,
+  hydrocodone-APAP C-II, oxycodone C-II, alprazolam C-IV, lorazepam C-IV, zolpidem C-IV, amphetamine salts C-II,
+  methylphenidate ER C-II, pregabalin C-V) + `SCHEDULE/DEFAULT_DAYS/OPIOIDS/BENZOS`. `app/epcs.py`: prescriptions
+  get `schedule, days_supply, dea_number, epcs_signed_at, pdmp_reviewed` columns; providers get `dea`
+  (`DEMO-DEA-0001`…, also set on Reset demo data); **fictional PDMP** (`POST /api/pdmp/{patient_id}` {drug, strength, quantity,
+  days_supply}): demo histories by MRN (Fatima = 3 prescribers/3 pharmacies multiple-provider flag, Linda = active
+  alprazolam → opioid+benzo boxed warning, David = old tramadol) + this clinic's controlled Rx; flags for duplicate
+  active Rx and daily MME ≥50/≥90. Rules: C-II 0 refills, C-III-V ≤5, days' supply 1-90 required, C-II opioids ≤7
+  days, PDMP must be reviewed, allergy check. **2FA:** `POST /api/epcs/challenge` emails a 6-digit code (or returns
+  `dev_code` when email is off) → `POST /api/epcs/sign` {request_id, pin (demo PIN **2468**), code}; 5-min expiry,
+  3 tries, no replay. Signed Rx → pharmacy inbox (DEA schedule/DEA#/days/"signed with 2-factor") + email with a
+  "CONTROLLED SUBSTANCE (EPCS) DEMO: NOT A VALID PRESCRIPTION" banner. The normal `/api/prescriptions` rejects
+  controlled drugs (409). UI in `rx-form.js` (controlled optgroup, PDMP panel, days' supply, refills locked for C-II,
+  inline 2FA step); `rxStatusBadge` shows "C-II · EPCS". Tested: 17/17 API + 9/9 UI.
+- `run.py`: if the app is already running (start.bat double-clicked), it now just opens the browser instead of crashing
+  on port 8000. `start.bat` title is now "FlatRate Health".
+- **Testing isolation (important):** the user may have the app running. Run test servers on **port 8010** with
+  `DATA_DIR=<scratchpad>\testdata SMTP_PASS= CAMERA_NAME=none CAMERA_INDEX=9` (new `DATA_DIR` env in `config.py`) so
+  tests never reset the user's demo DB, grab the camera, or send email.
+- ⏭ Next: A3 Lab orders + results + Clinical Inbox.
 
 ### Research summary: athenaOne vs. us (Nov 21)
 athenaOne = athenaClinicals (EHR) + athenaCollector (practice management/billing) + athenaCommunicator (patients).
