@@ -8,11 +8,15 @@ planning, research and all the programming. The user handles the physical/CAD si
 
 ## ⭐ START HERE: current state + architecture map (updated Nov 21, 2026, about midday)
 
-**Where we are:** the Nov 20 platform (Phases 1-7) is done. On hackathon day, Track A (Claude) has finished
-A1 Ambient Notes, A2 EPCS, A3 Labs + Clinical Inbox, A4 Care gaps (pushed to `track-a`) and A5 AI after-visit
-summary (built + tested; commit it once the user OKs it). Track B (partner,
-GitHub `talha18-sys`, branch `track-b`) finished B1 Patient Portal (merged into `main` at merge 1).
-**Next for Track A:** optional A6 "Ask the chart" AI assistant (like athenaOne's Sage), or polish/merge prep. After that comes merge 2 (`track-a` + `track-b` → `main`); see section 0 → Collaboration workflow.
+**Where we are (after Merge 2, `main` = `910a6a5`, about 5 h before judging):** the Nov 20 platform (Phases 1-7) is done.
+Track A (Claude) finished A1 Ambient Notes, A2 EPCS, A3 Labs + Clinical Inbox, A4 Care gaps, A5 AI after-visit summary.
+Track B (partner, GitHub `talha18-sys`) finished B1 Patient Portal, B2 Eligibility, B3 Balances/payments/statements,
+B4 Reminder emails. **Everything is merged into `main`; `track-a` and `track-b` were reset to `main` on GitHub** (the
+partner must `git pull` on `track-b`). Gemini billing is ON (prepaid credits).
+**Plan for the remaining time (agreed with the user):** hours 1-3 = last features (Claude: optional A6 "Ask the chart",
+like athenaOne's Sage; partner: optional B5 insurance-card photo → AI fills insurance) + merge 3; about 1.5 h before judging =
+**code freeze**, then demo prep: rewrite `DEMO_SCRIPT.md` for today's features (pick the strongest 3-minute story), pitch
+outline + judge Q&A, the user rehearses twice and records the backup video. After that comes merge 2 (`track-a` + `track-b` → `main`); see section 0 → Collaboration workflow.
 **How the user works:** build one task → test it → report in plain language → the user says OK → commit + push to
 `track-a` → next task. Keep CLAUDE.md updated *before* each commit.
 
@@ -55,6 +59,9 @@ Events: Python `events.broadcast({...})` → `/api/events` → one SharedWorker 
 | `dashboard.py` | dashboard numbers + time-saved estimate | `/dashboard` |
 | `mailer.py`, `events.py` | email (Rx, EPCS code), SSE broadcast | |
 | `portal.py` (Track B) | `messages` table + patient portal | `/portal/{pid}…`, `/messages`, `/messages/{id}` (PATCH), `/messages/{id}/reply` |
+| `eligibility.py` (B2) | mock insurer 270/271 eligibility: active/terminated (demo: Michael Johnson terminated), copay/coinsurance from `payer.PAYERS`, deductible progress; checked at booking + check-in | `/eligibility/check`, `/eligibility/patient/{pid}`, `/eligibility/day`, `/eligibility/batch` |
+| `ledger.py` (B3) | `payments` table; balances computed live from claim remittances (PR-2/PR-3) + self-pay; mock card processor (Luhn, stores brand + last 4 only); statements | `/patients/{pid}/balance`, `/appointments/{id}/copay`, `/payments` (GET/POST); page `/statement?patient_id=` |
+| `reminders.py` (B4) | `reminders` table; reminder emails (demo inbox only) with Confirm / Need to reschedule links (reschedule → `appointment_request` in `messages` → Clinical Inbox) | `/reminders`, `/reminders/preview/{appt}`, `/reminders/send`, `/appointments/{id}/confirm`, public `/r/{token}` |
 
 Each module's `init()` creates its tables (plus `ALTER TABLE` auto-migrations for new columns). "Reset demo data" runs
 `seed.seed()`, which clears and re-creates everything. **To add a module:** call its `init()` in `main.py` startup,
@@ -73,7 +80,9 @@ hook in `seed.py` if it has demo data.
   - `ambient.js`.
   - `labs.js`: `labTable`, `labStatus`, `setupLabs`.
   - `caregaps.js`: `gapRows`, `setupCareGaps`.
-  - `avs.js`: `setupAvs` (summary draft/edit/language/send/print).
+  - `avs.js`: `setupAvs` (summary draft/edit/language/send/print). **Card scripts must look up their own elements with
+    `box.querySelector`, not `$()`**: the visit page re-renders and a stale card would hit null (the Merge 2 bug).
+  - Track B: `eligibility.js`, `payments.js` (balance card, payments), `reminders.js` (schedule page).
   - `patient-form.js`, `events-worker.js`.
 
 ### Live events (type → who listens)
@@ -179,7 +188,12 @@ GitHub username and judging time haven't been given yet).
   `encounters.summary` + portal message "Your visit summary … is ready"; Re-draft keeps the sent version until re-sent;
   Print. Seed: summaries on Maria's and Aisha's past visits. Dashboard time saved includes 5 min per summary sent.
   Tested 16/16 (draft about 1.7 s after signing) + regressions (care gaps 14, labs 18+11, EPCS 17).
-- ⏭ Next: optional A6 "Ask the chart"; then merge 2 with `track-b`.
+- **Merge 2 (Nov 21 afternoon):** `track-a` (A3-A5) + `track-b` (B2-B4) → `main` = `910a6a5`. Conflicts (`main.py` imports,
+  `seed.py` seed calls, `patient.html` script tags) were keep-both. The merged rehearsal found an `avs.js` bug (page-wide
+  `$()` lookups in a card that can go stale after re-render) → fixed in the merge commit. Tested on the merged code: original
+  demo rehearsal 100%, 12 pages open at once, labs 18+11, gaps 14, EPCS 17, AVS 15, Track B endpoints OK. Merged-app tests
+  ran from a temporary `git worktree` with a launcher that loads the real `.env` key (never printed) with email off.
+- ⏭ Next: optional A6 "Ask the chart"; merge 3; code freeze; demo prep.
 
 ### Research summary: athenaOne vs. us (Nov 21)
 athenaOne = athenaClinicals (EHR) + athenaCollector (practice management/billing) + athenaCommunicator (patients).
