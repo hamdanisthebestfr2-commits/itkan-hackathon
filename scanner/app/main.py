@@ -10,8 +10,9 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import billing, clinic, config, crm, reader, seed, validate
+from . import ambient, billing, clinic, config, crm, reader, seed, validate
 from .camera import Camera, list_cameras, pick_camera
+from .ambient import router as ambient_router
 from .billing_api import router as billing_router
 from .clinic_api import router as clinic_router
 from .dashboard import router as dashboard_router
@@ -65,6 +66,7 @@ async def lifespan(app: FastAPI):
     crm.init()
     clinic.init()
     billing.init()
+    ambient.init()
     if clinic.is_empty():
         seed.seed()
     camera = Camera(pick_camera(config.CAMERA_NAME, config.CAMERA_INDEX), on_camera_capture)
@@ -77,6 +79,7 @@ app = FastAPI(lifespan=lifespan)
 app.include_router(clinic_router)
 app.include_router(billing_router)
 app.include_router(dashboard_router)
+app.include_router(ambient_router)
 app.mount("/scans", StaticFiles(directory=config.SCANS_DIR), name="scans")
 app.mount("/static", StaticFiles(directory=config.WEB_DIR / "static"), name="static")
 

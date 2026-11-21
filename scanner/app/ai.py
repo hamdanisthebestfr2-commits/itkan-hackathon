@@ -80,6 +80,7 @@ async def generate(models: list[str], contents, schema, system: str | None = Non
             last = e
             kind = _classify(e)
             errors.append(kind)
+            print(f"[ai] {model} failed ({kind}): {str(e)[:160]}", flush=True)
             if kind == "daily":
                 _cooldown[model] = time.time() + DAILY_COOLDOWN
             elif kind in ("busy", "missing"):

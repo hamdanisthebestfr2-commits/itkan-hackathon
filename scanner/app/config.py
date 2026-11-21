@@ -25,6 +25,8 @@ def _models(env: str, default: str) -> list[str]:
 # (or busy) the next one is used automatically. Best model first.
 # Order = best first, then FAST fallbacks (lite models answer in ~1-3 s), slow big models last.
 CODING_MODELS = _models("CODING_MODELS", "gemini-3.5-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-3.7-flash,gemini-3.8-flash")
+# Ambient notes are interactive (the doctor waits): fast lite models first, bigger model as backup.
+SCRIBE_MODELS = _models("SCRIBE_MODELS", "gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-3.5-flash,gemini-3.7-flash")
 READ_FALLBACKS = _models("READ_FALLBACKS", "gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-3.7-flash")
 DOUBLE_READ = os.environ.get("DOUBLE_READ", "1") == "1"
 # Camera is picked by name (Windows can renumber devices); CAMERA_INDEX is the fallback.

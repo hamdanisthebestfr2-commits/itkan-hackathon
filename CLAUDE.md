@@ -9,7 +9,23 @@ planning, research and all the programming. The user handles the physical/CAD si
 ## 0. ⭐ HACKATHON DAY PLAN (Sat Nov 21, 2026): read this first
 The platform from Phases 1-7 (sections 3-4) is **done and working**. Today (~7 h at the event) we add the
 athenaOne features we're missing, built by **two people in parallel**: Claude on Track A, the user/partner on Track B.
-Status: **plan approved by the user; not started yet.** Next step: Claude builds the skeleton (step 0 below).
+Status: plan approved. The user said to **start Track A directly** (skeleton/partner setup still pending; the partner's
+GitHub username and judging time haven't been given yet).
+
+**Progress (branch `track-a`):**
+- ✅ **A1 AI Ambient Notes**: `app/ambient.py` (`POST /api/encounters/{id}/ambient/audio` with a 16 kHz mono WAV upload,
+  `POST /api/encounters/{id}/ambient/transcript` with `{transcript}` → `AmbientNote` {transcript, subjective, objective,
+  assessment, plan, patient_instructions, needs_review, model}; saves `encounters.ambient_transcript`; 409 on signed
+  visits) + `web/static/ambient.js` (panel on the visit page: "🎙 Record the visit" (MediaRecorder → re-encoded in the
+  browser to 16 kHz WAV → upload; live level meter + timer; auto-stop at 9 min) and "⌨ Wispr Flow transcript"
+  (the user has **Wispr Flow** installed; **double-tap Caps Lock** starts/stops it and it types into the focused box)).
+  The draft shows S/O/A/P + patient instructions + "check before signing" + transcript → **Insert into visit note**
+  (asks replace vs. add below) → autosave. The prompt forbids invented findings/doses and boilerplate exam phrases.
+  Uses `config.SCRIBE_MODELS` (lite models first: on Nov 21 morning `gemini-3.5-flash` was taking >20 s even for
+  trivial prompts). `ai.generate` now prints `[ai] <model> failed (<kind>)` to the server log on each fallback.
+  Tested: TTS two-voice conversation fed as Edge's fake microphone (`--use-file-for-fake-audio-capture=x.wav%noloop`)
+  → draft 7.6 s after stop, accurate (levothyroxine 75→100, TSH, 6-week follow-up); transcript path OK; 9/9 UI checks.
+- ⏭ Next: A2 EPCS (controlled substances).
 
 ### Research summary: athenaOne vs. us (Nov 21)
 athenaOne = athenaClinicals (EHR) + athenaCollector (practice management/billing) + athenaCommunicator (patients).
